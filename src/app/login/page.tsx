@@ -1,0 +1,112 @@
+"use client";
+import { useState } from "react";
+import Link from "next/link";
+import { Check, ArrowRight } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import en from "@/messages/en.json";
+export default function Login() {
+  const [signup, setSignup] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const f = new FormData(e.currentTarget);
+    try {
+      const input = {
+        email: String(f.get("email")),
+        password: String(f.get("password")),
+      };
+      const result = signup
+        ? await authClient.signUp.email({
+            ...input,
+            name: String(f.get("name")),
+          })
+        : await authClient.signIn.email(input);
+      if (result.error)
+        setError(signup ? en.auth.signupFailed : en.auth.failed);
+      else window.location.assign("/workspace");
+    } catch {
+      setError(en.common.error);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="auth-page">
+      <Link className="brand" href="/">
+        <span className="brand-mark">
+          <Check />
+        </span>
+        {en.brand.name}
+        <span className="arabic">{en.brand.arabic}</span>
+      </Link>
+      <div className="auth-grid">
+        <section className="auth-intro">
+          <span className="eyebrow">{en.brand.tagline}</span>
+          <h1>{en.auth.title}</h1>
+          <p>{en.auth.subtitle}</p>
+          <div className="auth-art" aria-hidden>
+            <div>
+              <Check size={64} />
+            </div>
+            <span />
+            <span />
+          </div>
+        </section>
+        <form className="auth-form" onSubmit={submit}>
+          <h2>{signup ? en.auth.signUp : en.auth.signIn}</h2>
+          {signup && (
+            <label>
+              {en.auth.name}
+              <input name="name" autoComplete="name" required maxLength={100} />
+            </label>
+          )}
+          <label>
+            {en.auth.email}
+            <input name="email" type="email" autoComplete="email" required />
+          </label>
+          <label>
+            {en.auth.password}
+            <input
+              name="password"
+              type="password"
+              autoComplete={signup ? "new-password" : "current-password"}
+              minLength={signup ? 12 : 1}
+              required
+            />
+          </label>
+          {signup && <small>{en.auth.passwordHint}</small>}
+          {error && (
+            <p role="alert" className="error">
+              {error}
+            </p>
+          )}
+          <Button disabled={busy}>
+            {busy
+              ? en.common.loading
+              : signup
+                ? en.auth.signUp
+                : en.auth.signIn}
+            <ArrowRight size={16} />
+          </Button>
+          <p>
+            {signup ? en.auth.haveAccount : en.auth.noAccount}{" "}
+            <button
+              type="button"
+              className="text-link"
+              onClick={() => setSignup(!signup)}
+            >
+              {signup ? en.auth.signIn : en.auth.signUp}
+            </button>
+          </p>
+          <Link className="text-link" href="/">
+            {en.auth.demo}
+          </Link>
+        </form>
+      </div>
+    </main>
+  );
+}
