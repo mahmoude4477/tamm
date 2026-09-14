@@ -40,7 +40,7 @@ Not yet implemented: email verification/recovery and email delivery, invitation 
 
 ## Validation
 
-`npm run typecheck`, `npm test`, and `npm run build` are CI gates. Tests cover authorization, review/dependency rules, transfer history, stale versions, visibility, owner retention, and CSV formula escaping.
+`npm run typecheck`, `npm test`, and `npm run build` are CI gates. Tests cover authorization, review/dependency rules, transfer history, stale versions, visibility, owner retention, and CSV formula escaping. CI additionally applies migrations to PostgreSQL 16 and exercises real HTTP account/session, workspace, project, task, review, access-control, and origin-check flows.
 
 For subsequent schema changes, generate reviewed SQL migrations with `npm run db:generate`, commit them, and apply with `npm run db:migrate`. Do not use `db:push` against a production database. Configure a least-privileged database role, HTTPS, backups, and your reverse proxy. The standalone build can run as a Node.js service behind IIS.
 

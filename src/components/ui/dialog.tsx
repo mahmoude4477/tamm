@@ -1,9 +1,9 @@
 "use client";
-import * as React from "react";
-import * as Primitive from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import en from "@/messages/en.json";
+import * as Primitive from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
+import * as React from "react";
 export const Dialog = Primitive.Root;
 export const DialogTrigger = Primitive.Trigger;
 export const DialogTitle = Primitive.Title;
