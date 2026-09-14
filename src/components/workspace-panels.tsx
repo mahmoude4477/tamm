@@ -1,4 +1,5 @@
 "use client";
+import { AccountPanel } from "./account-panel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -120,7 +121,7 @@ export function TeamPanel({
     null,
   );
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
-  const manage = can(actor.role, "user.manage");
+  const manage = can(actor.role, "user.manage", actor.permissions);
   return (
     <>
       <Heading title={en.team.title} subtitle={en.team.subtitle}>
@@ -483,7 +484,7 @@ export function SettingsPanel({
               </div>
             ))}
           </div>
-          {can(actor.role, "workflow.manage") && (
+          {can(actor.role, "workflow.manage", actor.permissions) && (
             <form
               className="editor-form"
               onSubmit={async (e) => {
@@ -543,7 +544,9 @@ export function SettingsPanel({
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={busy || !can(actor.role, "task.delete")}
+                  disabled={
+                    busy || !can(actor.role, "task.delete", actor.permissions)
+                  }
                   onClick={() => send({ type: "task.restore", id: t.id })}
                 >
                   {en.common.restore}
@@ -559,7 +562,9 @@ export function SettingsPanel({
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={busy || !can(actor.role, "task.delete")}
+                  disabled={
+                    busy || !can(actor.role, "task.delete", actor.permissions)
+                  }
                   onClick={() =>
                     send({ type: "task.archive", id: t.id, archived: false })
                   }
@@ -568,7 +573,12 @@ export function SettingsPanel({
                 </Button>
               </div>
             ))}
-          {!demo && <AccountSettings />}
+          {!demo && (
+            <>
+              <AccountPanel />
+              <AccountSettings />
+            </>
+          )}
         </section>
       </div>
     </>

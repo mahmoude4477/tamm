@@ -18,6 +18,8 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  banned: boolean("banned").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -27,6 +29,8 @@ export const session = pgTable("session", {
   token: text("token").notNull().unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  activeOrganizationId: text("active_organization_id"),
+  activeTeamId: text("active_team_id"),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   userId: text("user_id")
@@ -63,6 +67,17 @@ export const workspaces = pgTable("workspace", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   version: integer("version").notNull().default(0),
+  slug: text("slug").unique(),
+  logo: text("logo"),
+  metadata: text("metadata"),
+  settings: jsonb("settings")
+    .$type<import("@/lib/types").WorkspaceSettings>()
+    .notNull()
+    .default({
+      transferPolicy: "team",
+      timezone: "UTC",
+      taskTypes: ["task", "bug", "request"],
+    }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 export const memberships = pgTable(
@@ -77,6 +92,10 @@ export const memberships = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     role: text("role").$type<Role>().notNull().default("member"),
     teamId: text("team_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    active: boolean("active").notNull().default(true),
+    jobTitle: text("job_title").notNull().default(""),
+    customRoleId: text("custom_role_id"),
   },
   (t) => [
     uniqueIndex("membership_unique").on(t.workspaceId, t.userId),
@@ -109,6 +128,7 @@ export const departments = pgTable(
       .notNull()
       .references(() => workspaces.id),
     name: text("name").notNull(),
+    managerId: text("manager_id"),
   },
   (t) => [unique("department_scope").on(t.workspaceId, t.id)],
 );
@@ -121,6 +141,9 @@ export const teams = pgTable(
       .references(() => workspaces.id),
     name: text("name").notNull(),
     departmentId: text("department_id"),
+    managerId: text("manager_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at"),
   },
   (t) => [
     unique("team_scope").on(t.workspaceId, t.id),
@@ -141,6 +164,10 @@ export const statuses = pgTable(
     category: text("category").$type<Status["category"]>().notNull(),
     color: text("color").notNull(),
     position: integer("position").notNull(),
+    allowedNextIds: jsonb("allowed_next_ids")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
   },
   (t) => [unique("status_scope").on(t.workspaceId, t.id)],
 );
@@ -153,6 +180,19 @@ export const projects = pgTable(
       .references(() => workspaces.id),
     name: text("name").notNull(),
     code: text("code").notNull(),
+    ownerId: text("owner_id"),
+    managerId: text("manager_id"),
+    startDate: text("start_date"),
+    endDate: text("end_date"),
+    priority: text("priority")
+      .$type<Task["priority"]>()
+      .notNull()
+      .default("medium"),
+    lifecycle: text("lifecycle")
+      .$type<import("@/lib/types").Project["lifecycle"]>()
+      .notNull()
+      .default("planned"),
+    deletedAt: text("deleted_at"),
     description: text("description").notNull(),
     color: text("color").notNull(),
     archived: boolean("archived").notNull().default(false),
@@ -199,6 +239,12 @@ export const tasks = pgTable(
     priority: text("priority").$type<Task["priority"]>().notNull(),
     assigneeId: text("assignee_id"),
     reporterId: text("reporter_id").notNull(),
+    assigneeIds: jsonb("assignee_ids").$type<string[]>().notNull().default([]),
+    watcherIds: jsonb("watcher_ids").$type<string[]>().notNull().default([]),
+    relatedIds: jsonb("related_ids").$type<string[]>().notNull().default([]),
+    duplicateOfId: text("duplicate_of_id"),
+    taskType: text("task_type").notNull().default("task"),
+    actualHours: doublePrecision("actual_hours").notNull().default(0),
     dueDate: text("due_date"),
     startDate: text("start_date"),
     completedAt: text("completed_at"),
@@ -271,6 +317,13 @@ export const activityEvents = pgTable(
     taskId: text("task_id"),
     actorId: text("actor_id").notNull(),
     action: text("action").notNull(),
+    parentEventId: text("parent_event_id"),
+    mentionedIds: jsonb("mentioned_ids")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    editedAt: text("edited_at"),
+    deletedAt: text("deleted_at"),
     text: text("text").notNull(),
     createdAt: text("created_at").notNull(),
     previousAssigneeId: text("previous_assignee_id"),
@@ -288,3 +341,186 @@ export const activityEvents = pgTable(
     index("activity_workspace").on(t.workspaceId, t.createdAt),
   ],
 );
+
+export const teamMember = pgTable(
+  "team_member",
+  {
+    id: text("id").primaryKey(),
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [unique("team_member_unique").on(t.teamId, t.userId)],
+);
+export const invitation = pgTable("invitation", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => workspaces.id),
+  email: text("email").notNull(),
+  role: text("role"),
+  status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at").notNull(),
+  inviterId: text("inviter_id")
+    .notNull()
+    .references(() => user.id),
+  teamId: text("team_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const twoFactor = pgTable("two_factor", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  secret: text("secret").notNull(),
+  backupCodes: text("backup_codes").notNull(),
+  verified: boolean("verified").default(true),
+  failedVerificationCount: integer("failed_verification_count").default(0),
+  lockedUntil: timestamp("locked_until"),
+});
+export const passkey = pgTable("passkey", {
+  id: text("id").primaryKey(),
+  name: text("name"),
+  publicKey: text("public_key").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  credentialID: text("credential_id").notNull(),
+  counter: integer("counter").notNull(),
+  deviceType: text("device_type").notNull(),
+  backedUp: boolean("backed_up").notNull(),
+  transports: text("transports"),
+  createdAt: timestamp("created_at"),
+  aaguid: text("aaguid"),
+});
+export const customRoles = pgTable(
+  "custom_role",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    name: text("name").notNull(),
+    permissions: jsonb("permissions").$type<string[]>().notNull().default([]),
+  },
+  (t) => [unique("custom_role_name").on(t.workspaceId, t.name)],
+);
+export const attachments = pgTable(
+  "attachment",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    taskId: text("task_id"),
+    projectId: text("project_id"),
+    name: text("name").notNull(),
+    size: integer("size").notNull(),
+    mime: text("mime").notNull(),
+    storageKey: text("storage_key").notNull().unique(),
+    uploadedBy: text("uploaded_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at"),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.workspaceId, t.taskId],
+      foreignColumns: [tasks.workspaceId, tasks.id],
+    }),
+    foreignKey({
+      columns: [t.workspaceId, t.projectId],
+      foreignColumns: [projects.workspaceId, projects.id],
+    }),
+    index("attachment_workspace").on(t.workspaceId),
+  ],
+);
+export const notifications = pgTable(
+  "notification",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    taskId: text("task_id"),
+    kind: text("kind").notNull(),
+    actorName: text("actor_name").notNull(),
+    taskTitle: text("task_title").notNull(),
+    readAt: timestamp("read_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    dedupeKey: text("dedupe_key").notNull().unique(),
+  },
+  (t) => [index("notification_inbox").on(t.workspaceId, t.userId, t.createdAt)],
+);
+export const notificationPreferences = pgTable(
+  "notification_preferences",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    enabledKinds: jsonb("enabled_kinds")
+      .$type<string[]>()
+      .notNull()
+      .default([
+        "assignment",
+        "comment",
+        "mention",
+        "review",
+        "status",
+        "due",
+        "overdue",
+      ]),
+  },
+  (t) => [unique("notification_preference_user").on(t.workspaceId, t.userId)],
+);
+export const savedViews = pgTable("saved_view", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id),
+  name: text("name").notNull(),
+  filters: jsonb("filters").notNull(),
+});
+export const taskTemplates = pgTable("task_template", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  name: text("name").notNull(),
+  data: jsonb("data").notNull(),
+});
+export const transferRequests = pgTable("transfer_request", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id),
+  requestedBy: text("requested_by")
+    .notNull()
+    .references(() => user.id),
+  fromId: text("from_id"),
+  toId: text("to_id")
+    .notNull()
+    .references(() => user.id),
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("pending"),
+  reviewerId: text("reviewer_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

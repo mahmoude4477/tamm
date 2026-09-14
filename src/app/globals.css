@@ -1680,3 +1680,148 @@ tr:last-child td {
     transform: none;
   }
 }
+
+/* Workspace administration and collaboration */
+.admin-stack {
+  display: grid;
+  gap: 24px;
+  margin-block-start: 24px;
+}
+.admin-stack > section {
+  border: 1px solid var(--border, #e8e8e2);
+  border-radius: 12px;
+  padding: 24px;
+  background: var(--surface, #fff);
+}
+.admin-stack details,
+.comment {
+  border-block-end: 1px solid var(--border, #e8e8e2);
+  padding-block: 16px;
+}
+.admin-stack summary,
+.column-options summary,
+.workspace-switcher summary {
+  cursor: pointer;
+  font-weight: 550;
+  padding-block: 8px;
+}
+.admin-stack pre,
+.detail-section pre {
+  overflow: auto;
+  max-height: 360px;
+  font-size: 12px;
+  padding: 12px;
+  background: #f5f5f1;
+}
+.admin-stack fieldset {
+  border: 1px solid var(--border, #e8e8e2);
+  border-radius: 8px;
+  padding: 12px;
+}
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-block: 12px;
+  border-block-end: 1px solid var(--border, #e8e8e2);
+}
+.file-row > span {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.file-row small,
+.restore-row small {
+  display: block;
+  color: #73766c;
+  font-size: 12px;
+}
+.file-row a {
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.comment time {
+  font-size: 12px;
+  color: #73766c;
+}
+.comment blockquote {
+  margin: 12px 0;
+  padding-inline-start: 12px;
+  border-inline-start: 2px solid #c5ccb9;
+  color: #6c7163;
+}
+.markdown {
+  overflow-wrap: anywhere;
+}
+.markdown p {
+  margin-block: 8px;
+}
+.markdown ul,
+.markdown ol {
+  padding-inline-start: 24px;
+}
+.markdown a {
+  text-decoration: underline;
+}
+.markdown pre {
+  max-width: 100%;
+  overflow: auto;
+  padding: 12px;
+  background: #f6f6f1;
+}
+.markdown img {
+  max-width: 100%;
+}
+.workspace-switcher {
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+.workspace-switcher select {
+  width: 100%;
+}
+.workspace-switcher .editor-form {
+  margin-block: 8px;
+}
+.column-resize {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.column-resize:hover,
+.column-resize:focus-visible {
+  background: #c5ccb9;
+}
+.column-options {
+  margin-block: 12px;
+}
+.bulk-bar {
+  flex-wrap: wrap;
+}
+.bulk-bar label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+.table-wrap td {
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .admin-stack > section {
+    padding: 16px;
+  }
+  .file-row {
+    gap: 8px;
+  }
+  .admin-stack .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .workspace-switcher select {
+    min-height: 40px;
+  }
+}

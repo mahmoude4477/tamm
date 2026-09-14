@@ -1,4 +1,10 @@
 "use client";
+import { AdvancedFilters } from "./advanced-filters";
+import { matchesFilters, type TaskFilters } from "@/lib/task-filters";
+import { TaskTable } from "./task-table";
+import { WorkspaceSwitcher } from "./organization-panel";
+import { AdminPanel } from "./admin-panel";
+import { Inbox } from "./collaboration-panel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -76,15 +82,49 @@ const nav = [
   ["reports", ChartNoAxesCombined],
   ["activity", Activity],
 ] as const;
-export function TammApp({ demo = false }: { demo?: boolean }) {
+export function TammApp({
+  demo = false,
+  initialPage = "overview",
+}: {
+  demo?: boolean;
+  initialPage?: Page;
+}) {
   const [w, setW] = useState<Workspace | null>(null);
-  const [page, setPage] = useState<Page>("overview");
+  const [page, setPage] = useState<Page>(initialPage);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [view, setView] = useState<"board" | "list" | "calendar">("board");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
   const [assignee, setAssignee] = useState("");
+  const [advanced, setAdvanced] = useState<TaskFilters>({});
+  useEffect(() => {
+    try {
+      const raw = new URLSearchParams(window.location.search).get("filters");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+          setAdvanced(
+            Object.fromEntries(
+              Object.entries(parsed).filter(
+                ([k, v]) =>
+                  ([
+                    "team",
+                    "department",
+                    "creator",
+                    "tag",
+                    "from",
+                    "to",
+                  ].includes(k) &&
+                    typeof v === "string") ||
+                  (["overdue", "dependency"].includes(k) &&
+                    typeof v === "boolean"),
+              ),
+            ),
+          );
+      }
+    } catch {}
+  }, []);
   const [filter, setFilter] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [taskId, setTaskId] = useState<string | null>(null);
@@ -150,7 +190,12 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
       } else {
         const r = await fetch("/api/workspace", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(workspaceRef.current
+              ? { "x-workspace-id": workspaceRef.current.id }
+              : {}),
+          },
           body: JSON.stringify(command),
         });
         const data = await r.json();
@@ -182,7 +227,11 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
   const filtered = tasks.filter(
     (t) =>
       (!projectId || t.projectId === projectId) &&
-      (page !== "myTasks" || t.assigneeId === w?.currentUserId) &&
+      (!w || matchesFilters(w, t, advanced, today())) &&
+      (page !== "myTasks" ||
+        [t.assigneeId, ...(t.assigneeIds ?? [])].includes(
+          w?.currentUserId ?? "",
+        )) &&
       (!status || t.statusId === status) &&
       (!priority || t.priority === priority) &&
       (!assignee || t.assigneeId === assignee) &&
@@ -364,16 +413,20 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
             <small>{demo ? en.nav.demo : en.nav.live}</small>
           </span>
         </div>
+        {!demo && <WorkspaceSwitcher w={w} />}
         <button className="sidebar-search" onClick={() => setCommandOpen(true)}>
           <Search size={15} />
           {en.common.searchShort}
           <kbd>⌘ K</kbd>
         </button>
+        {!demo && <Inbox w={w} onTask={setTaskId} />}
         <span className="nav-caption">{en.nav.workspace}</span>
         <nav>
           {nav
             .filter(
-              ([key]) => key !== "reports" || can(person!.role, "report.view"),
+              ([key]) =>
+                key !== "reports" ||
+                can(person!.role, "report.view", person!.permissions),
             )
             .map(([key, Icon]) => (
               <button
@@ -397,7 +450,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
         </nav>
         <div className="nav-caption project-caption">
           {en.nav.favorites}
-          {can(person!.role, "project.manage") && (
+          {can(person!.role, "project.manage", person!.permissions) && (
             <button
               aria-label={en.common.newProject}
               onClick={() => setCreateProject(true)}
@@ -408,7 +461,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
         </div>
         <nav>
           {w.projects
-            .filter((p) => !p.archived)
+            .filter((p) => !p.archived && !p.deletedAt)
             .map((p) => (
               <button
                 className={projectId === p.id ? "active" : ""}
@@ -515,7 +568,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
                   <h1>{en.overview.title}</h1>
                   <p>{en.overview.subtitle}</p>
                 </div>
-                {can(person!.role, "task.create") && (
+                {can(person!.role, "task.create", person!.permissions) && (
                   <Button onClick={() => setCreateTask(true)}>
                     <Plus size={16} />
                     {en.common.newTask}
@@ -607,7 +660,9 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
                   </Button>
                 </div>
                 <div className="project-grid">
-                  {w.projects.filter((p) => !p.archived).map(projectCard)}
+                  {w.projects
+                    .filter((p) => !p.archived && !p.deletedAt)
+                    .map(projectCard)}
                 </div>
               </section>
               <section className="section">
@@ -628,14 +683,18 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
               >
                 <Button
                   onClick={() => setCreateProject(true)}
-                  disabled={!can(person!.role, "project.manage")}
+                  disabled={
+                    !can(person!.role, "project.manage", person!.permissions)
+                  }
                 >
                   <Plus size={16} />
                   {en.common.newProject}
                 </Button>
               </Heading>
               <div className="project-grid">
-                {w.projects.filter((p) => !p.archived).map(projectCard)}
+                {w.projects
+                  .filter((p) => !p.archived && !p.deletedAt)
+                  .map(projectCard)}
               </div>
               {!w.projects.length && (
                 <Empty
@@ -651,7 +710,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
                 title={project?.name ?? en.tasks.myTitle}
                 subtitle={project?.description ?? en.tasks.mySubtitle}
               >
-                {can(person!.role, "task.create") && (
+                {can(person!.role, "task.create", person!.permissions) && (
                   <Button onClick={() => setCreateTask(true)}>
                     <Plus size={16} />
                     {en.common.newTask}
@@ -705,6 +764,12 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
                   </Button>
                 </div>
               </div>
+              <AdvancedFilters
+                w={w}
+                value={advanced}
+                onChange={setAdvanced}
+                demo={demo}
+              />
               {filter && (
                 <div className="filters">
                   <select
@@ -873,112 +938,13 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
                 </div>
               )}
               {view === "list" && (
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th />
-                        <th>{en.tasks.titleLabel}</th>
-                        <th>{en.tasks.status}</th>
-                        <th>{en.tasks.priority}</th>
-                        <th>{en.tasks.assignee}</th>
-                        <th>{en.tasks.dueDate}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered.map((t) => (
-                        <tr key={t.id}>
-                          <td>
-                            <input
-                              type="checkbox"
-                              aria-label={`${en.common.select} ${t.title}`}
-                              checked={selected.includes(t.id)}
-                              onChange={(e) =>
-                                setSelected(
-                                  e.target.checked
-                                    ? [...selected, t.id]
-                                    : selected.filter((id) => id !== t.id),
-                                )
-                              }
-                            />
-                          </td>
-                          <td>
-                            <button
-                              className="table-task"
-                              onClick={() => setTaskId(t.id)}
-                            >
-                              <small>
-                                {
-                                  w.projects.find((p) => p.id === t.projectId)
-                                    ?.code
-                                }
-                                -{t.number}
-                              </small>
-                              {t.title}
-                            </button>
-                          </td>
-                          <td>
-                            <span className="status-label">
-                              <StatusDot w={w} id={t.statusId} />
-                              {
-                                w.statuses.find((s) => s.id === t.statusId)
-                                  ?.name
-                              }
-                            </span>
-                          </td>
-                          <td>
-                            <span className={`priority priority-${t.priority}`}>
-                              {en.priorities[t.priority]}
-                            </span>
-                          </td>
-                          <td>
-                            {w.members.find((m) => m.id === t.assigneeId)
-                              ?.name ?? en.common.unassigned}
-                          </td>
-                          <td>{formatDate(t.dueDate)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {selected.length > 0 && (
-                    <div className="bulk-bar">
-                      <b>
-                        {selected.length} {en.tasks.selected}
-                      </b>
-                      <select
-                        aria-label={en.tasks.bulkStatus}
-                        defaultValue=""
-                        onChange={async (e) => {
-                          const statusId = e.target.value;
-                          for (const id of selected) {
-                            const t = w.tasks.find((t) => t.id === id)!;
-                            if (
-                              !(await send({
-                                type: "task.update",
-                                id,
-                                version: t.version,
-                                data: { statusId },
-                              }))
-                            )
-                              break;
-                          }
-                          setSelected([]);
-                        }}
-                      >
-                        <option value="" disabled>
-                          {en.tasks.bulkStatus}
-                        </option>
-                        {w.statuses
-                          .filter((s) => s.category !== "done")
-                          .map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
+                <TaskTable
+                  w={w}
+                  tasks={filtered}
+                  onTask={setTaskId}
+                  send={send}
+                  busy={busy}
+                />
               )}
               {view === "calendar" && (
                 <Calendar
@@ -1007,7 +973,10 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
             </>
           )}
           {page === "settings" && (
-            <SettingsPanel w={w} send={send} busy={busy} demo={demo} />
+            <>
+              <SettingsPanel w={w} send={send} busy={busy} demo={demo} />
+              <AdminPanel w={w} send={send} busy={busy} demo={demo} />
+            </>
           )}
         </main>
         <footer className="app-footer">
@@ -1067,12 +1036,15 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
           {task && (
             <TaskDetail
               key={task.id + "-" + task.version}
+              demo={demo}
               w={w}
               task={task}
               send={send}
               busy={busy}
               activity={activityList(
-                w.events.filter((e) => e.taskId === task.id),
+                w.events.filter(
+                  (e) => e.taskId === task.id && e.action !== "task.commented",
+                ),
               )}
             />
           )}

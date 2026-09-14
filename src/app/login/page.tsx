@@ -27,6 +27,19 @@ export default function Login() {
         : await authClient.signIn.email(input);
       if (result.error)
         setError(signup ? en.auth.signupFailed : en.auth.failed);
+      else if (
+        result.data &&
+        "twoFactorRedirect" in result.data &&
+        result.data.twoFactorRedirect
+      )
+        window.location.assign("/verify-2fa");
+      else if (
+        signup &&
+        result.data &&
+        "token" in result.data &&
+        !result.data.token
+      )
+        setError(en.account.verificationSent);
       else window.location.assign("/workspace");
     } catch {
       setError(en.common.error);
@@ -91,6 +104,26 @@ export default function Login() {
                 ? en.auth.signUp
                 : en.auth.signIn}
             <ArrowRight size={16} />
+          </Button>
+          <Link href="/forgot-password">{en.account.forgot}</Link>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const r = await authClient.signIn.passkey();
+                if (r.error) setError(en.auth.failed);
+                else window.location.assign("/workspace");
+              } catch {
+                setError(en.common.error);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {en.account.signInPasskey}
           </Button>
           <p>
             {signup ? en.auth.haveAccount : en.auth.noAccount}{" "}

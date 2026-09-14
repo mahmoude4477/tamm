@@ -7,7 +7,8 @@ export function activeTasks(w: Workspace) {
     (t) =>
       !t.deletedAt &&
       !t.archived &&
-      !w.projects.find((p) => p.id === t.projectId)?.archived,
+      !w.projects.find((p) => p.id === t.projectId)?.archived &&
+      !w.projects.find((p) => p.id === t.projectId)?.deletedAt,
   );
 }
 export function isOpen(w: Workspace, t: Task) {
