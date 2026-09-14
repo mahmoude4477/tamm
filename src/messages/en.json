@@ -572,5 +572,9 @@
     "created": "Created by me",
     "review": "Waiting for review",
     "completed": "Completed recently"
+  },
+  "localeNames": {
+    "en": "English",
+    "ar": "العربية"
   }
 }

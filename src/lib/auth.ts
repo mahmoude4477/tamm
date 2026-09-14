@@ -7,15 +7,20 @@ import {
   defaultAc,
   ownerAc,
   adminAc,
-  memberAc,
 } from "better-auth/plugins/organization/access";
 import { passkey } from "@better-auth/passkey";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
-import { can } from "./permissions";
+import { can, permissionKeys } from "./permissions";
+import type { Role } from "./types";
 import { sendMail } from "./email";
 import en from "@/messages/en.json";
+// Invitation access is always checked against application permissions below.
+const delegatedInvitations = defaultAc.newRole({
+  invitation: ["create", "cancel"],
+  ac: ["read"],
+});
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema }),
   baseURL: process.env.BETTER_AUTH_URL,
@@ -100,7 +105,6 @@ export const auth = betterAuth({
               ),
             );
           if (
-            m?.customRoleId &&
             [
               "/organization/invite-member",
               "/organization/cancel-invitation",
@@ -110,17 +114,41 @@ export const auth = betterAuth({
               "/organization/remove-team-member",
             ].includes(ctx.path)
           ) {
-            const [role] = await db
-              .select()
-              .from(schema.customRoles)
-              .where(
-                and(
-                  eq(schema.customRoles.id, m.customRoleId),
-                  eq(schema.customRoles.workspaceId, m.workspaceId),
-                ),
-              );
-            if (!can(m.role, "user.manage", role?.permissions))
+            if (!m)
               throw new APIError("FORBIDDEN", { message: en.errors.forbidden });
+            const [role] = m.customRoleId
+              ? await db
+                  .select()
+                  .from(schema.customRoles)
+                  .where(
+                    and(
+                      eq(schema.customRoles.id, m.customRoleId),
+                      eq(schema.customRoles.workspaceId, m.workspaceId),
+                    ),
+                  )
+              : [];
+            const permissions = m.customRoleId
+              ? (role?.permissions ?? [])
+              : undefined;
+            if (!can(m.role, "user.manage", permissions))
+              throw new APIError("FORBIDDEN", { message: en.errors.forbidden });
+            if (ctx.path === "/organization/invite-member") {
+              const requestedRole = ctx.body?.role;
+              if (
+                typeof requestedRole !== "string" ||
+                !["owner", "admin", "manager", "member", "viewer"].includes(
+                  requestedRole,
+                ) ||
+                permissionKeys.some(
+                  (permission) =>
+                    can(requestedRole as Role, permission) &&
+                    !can(m.role, permission, permissions),
+                )
+              )
+                throw new APIError("FORBIDDEN", {
+                  message: en.errors.forbidden,
+                });
+            }
           }
           if (m?.active === false)
             throw new APIError("FORBIDDEN", { message: en.errors.suspended });
@@ -194,9 +222,9 @@ export const auth = betterAuth({
       roles: {
         owner: ownerAc,
         admin: adminAc,
-        member: memberAc,
-        manager: memberAc,
-        viewer: defaultAc.newRole({}),
+        member: delegatedInvitations,
+        manager: delegatedInvitations,
+        viewer: delegatedInvitations,
       },
       sendInvitationEmail: async (data) =>
         sendMail(

@@ -3,8 +3,8 @@ import arabic from "@/messages/ar.json";
 export type Messages = typeof english;
 export type Locale = "en" | "ar";
 export const locales: Record<Locale, { label: string; dir: "ltr" | "rtl" }> = {
-  en: { label: "English", dir: "ltr" },
-  ar: { label: "العربية", dir: "rtl" },
+  en: { label: english.localeNames.en, dir: "ltr" },
+  ar: { label: english.localeNames.ar, dir: "rtl" },
 };
 function merge(
   base: Record<string, unknown>,

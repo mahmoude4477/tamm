@@ -568,5 +568,9 @@
     "created": "أنشأتها",
     "review": "بانتظار المراجعة",
     "completed": "مكتملة مؤخرًا"
+  },
+  "localeNames": {
+    "en": "English",
+    "ar": "العربية"
   }
 }

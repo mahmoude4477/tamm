@@ -366,3 +366,56 @@ try {
 console.log(
   "V1 integration passed: paginated visibility, canonical role changes, template application, invitation expiry and revocation.",
 );
+
+// Delegated administrators cannot use invitations to exceed their own grants.
+await api(member, "/api/auth/organization/invite-member", {
+  body: {
+    email: "denied@example.com",
+    role: "viewer",
+    organizationId: workspaceId,
+  },
+  expected: 403,
+});
+const delegated = await command(owner, {
+  type: "role.save",
+  name: "Invitation coordinator",
+  permissions: ["user.manage"],
+});
+const coordinator = delegated.customRoles.find(
+  (r) => r.name === "Invitation coordinator",
+);
+await command(owner, {
+  type: "member.update",
+  id: memberId,
+  role: "member",
+  teamId: null,
+  customRoleId: coordinator.id,
+});
+const viewerInvite = await api(member, "/api/auth/organization/invite-member", {
+  body: {
+    email: "delegated@example.com",
+    role: "viewer",
+    organizationId: workspaceId,
+  },
+});
+await api(member, "/api/auth/organization/cancel-invitation", {
+  body: { invitationId: viewerInvite.payload.id },
+});
+await api(member, "/api/auth/organization/invite-member", {
+  body: {
+    email: "escalation@example.com",
+    role: "admin",
+    organizationId: workspaceId,
+  },
+  expected: 403,
+});
+await command(owner, {
+  type: "member.update",
+  id: memberId,
+  role: "member",
+  teamId: null,
+  customRoleId: null,
+});
+console.log(
+  "Delegated invitation permissions and privilege boundaries passed.",
+);
