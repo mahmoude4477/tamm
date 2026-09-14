@@ -162,6 +162,7 @@ CREATE TABLE "workspace" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX "membership_unique" ON "membership" USING btree ("workspace_id","user_id");--> statement-breakpoint
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "activity_event" ADD CONSTRAINT "activity_event_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "activity_event" ADD CONSTRAINT "activity_event_workspace_id_task_id_task_workspace_id_id_fk" FOREIGN KEY ("workspace_id","task_id") REFERENCES "public"."task"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -188,7 +189,6 @@ ALTER TABLE "team" ADD CONSTRAINT "team_workspace_id_workspace_id_fk" FOREIGN KE
 ALTER TABLE "team" ADD CONSTRAINT "team_workspace_id_department_id_department_workspace_id_id_fk" FOREIGN KEY ("workspace_id","department_id") REFERENCES "public"."department"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "activity_workspace" ON "activity_event" USING btree ("workspace_id","created_at");--> statement-breakpoint
 CREATE INDEX "audit_workspace_time" ON "audit_log" USING btree ("workspace_id","created_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "membership_unique" ON "membership" USING btree ("workspace_id","user_id");--> statement-breakpoint
 CREATE INDEX "membership_user" ON "membership" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "task_assignee" ON "task" USING btree ("workspace_id","assignee_id");--> statement-breakpoint
 CREATE INDEX "task_project" ON "task" USING btree ("workspace_id","project_id");
