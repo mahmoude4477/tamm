@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "./ui/button";
 import type { Workspace } from "@/lib/types";
-import en from "@/messages/en.json";
+import { useMessages, useDates } from "@/components/locale-provider";
 export function WorkspaceSwitcher({ w }: { w: Workspace }) {
+  const en = useMessages();
+
   const [items, setItems] = useState<{ id: string; name: string }[]>([]),
     [error, setError] = useState("");
   useEffect(() => {
@@ -74,6 +76,8 @@ export function WorkspaceSwitcher({ w }: { w: Workspace }) {
   );
 }
 export function InvitationPanel({ w }: { w: Workspace }) {
+  const en = useMessages();
+
   const [items, setItems] = useState<
       { id: string; email: string; status: string; expiresAt: Date }[]
     >([]),

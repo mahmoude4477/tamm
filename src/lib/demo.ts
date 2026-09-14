@@ -31,32 +31,32 @@ export function createWorkspace(
     })),
   };
 }
-export function createDemo(): Workspace {
+export function createDemo(messages = en): Workspace {
   const w = createWorkspace(
     "demo",
-    en.demo.workspace,
+    messages.demo.workspace,
     "person-0",
-    en.demo.people[0],
+    messages.demo.people[0],
     "alex@example.com",
   );
   w.statuses = w.statuses.map((s, i) => ({ ...s, id: `status-${i}` }));
-  w.members = en.demo.people.map((name, i) => ({
+  w.members = messages.demo.people.map((name, i) => ({
     id: `person-${i}`,
     name,
     email: `person${i}@example.com`,
     role: i === 0 ? "owner" : "member",
     teamId: `team-${i % 2}`,
   }));
-  w.departments = en.demo.departments.map((name, i) => ({
+  w.departments = messages.demo.departments.map((name, i) => ({
     id: `department-${i}`,
     name,
   }));
-  w.teams = en.demo.teams.map((name, i) => ({
+  w.teams = messages.demo.teams.map((name, i) => ({
     id: `team-${i}`,
     name,
     departmentId: `department-${i}`,
   }));
-  w.projects = en.demo.projects.map((p, i) => ({
+  w.projects = messages.demo.projects.map((p, i) => ({
     id: `project-${i}`,
     name: p.name,
     description: p.description,
@@ -75,11 +75,11 @@ export function createDemo(): Workspace {
         now.getUTCDate() + offset,
       ),
     ).toISOString();
-  w.tasks = en.demo.tasks.map((title, i): Task => ({
+  w.tasks = messages.demo.tasks.map((title, i): Task => ({
     id: `task-${i}`,
     number: 101 + i,
     title,
-    description: en.demo.description,
+    description: messages.demo.description,
     projectId: `project-${i % 3}`,
     statusId: `status-${[2, 3, 2, 1, 1, 4, 0, 5, 4, 2, 3, 4][i]}`,
     priority: (
@@ -108,8 +108,8 @@ export function createDemo(): Workspace {
     estimatedHours: [4, 2, 12, 3, 8, 3, 2, 5, 2, 4, 3, 6][i],
     parentId: null,
     dependencyIds: [],
-    tags: i % 2 ? [en.demo.tags[0]] : [en.demo.tags[1]],
-    checklist: en.demo.checklist.map((text, j) => ({
+    tags: i % 2 ? [messages.demo.tags[0]] : [messages.demo.tags[1]],
+    checklist: messages.demo.checklist.map((text, j) => ({
       id: `check-${i}-${j}`,
       text,
       done: j === 0,
@@ -124,7 +124,7 @@ export function createDemo(): Workspace {
       taskId: "task-1",
       actorId: "person-1",
       action: "task.commented",
-      text: en.demo.comment,
+      text: messages.demo.comment,
       createdAt: date(0),
     },
     {

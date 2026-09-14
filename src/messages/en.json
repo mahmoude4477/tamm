@@ -38,9 +38,11 @@
     "done": "Done",
     "view": "View",
     "required": "Complete the required fields.",
-    "confirmDelete": "Move this task to trash? You can restore it in settings.",
+    "confirmDelete": "Move this item to trash? You can restore it in settings.",
     "select": "Select",
-    "hours": "hours"
+    "hours": "hours",
+    "language": "Language",
+    "kilobytes": "KB"
   },
   "nav": {
     "workspace": "Workspace",
@@ -192,7 +194,8 @@
     "completedColumn": "Completed in period",
     "onTimeColumn": "On time",
     "noData": "No completed tasks in this period.",
-    "definition": "Completion metrics use tasks completed in the selected month. Current workload includes all open tasks. Cycle time runs from creation to completion."
+    "definition": "Completion metrics use tasks completed in the selected month. Current workload includes all open tasks. Cycle time runs from creation to completion.",
+    "reopened": "Reopened during the month"
   },
   "settings": {
     "title": "Make Tamm your own.",
@@ -541,6 +544,8 @@
     "transferRequests": "Transfer requests",
     "approve": "Approve",
     "reject": "Reject",
-    "requested": "Transfer requested."
+    "requested": "Transfer requested.",
+    "calendarDates": "Task and project dates",
+    "reportNote": "Completed tasks use their completion month. Workload is current. A task with multiple assignees appears in each assignee’s row."
   }
 }

@@ -140,6 +140,7 @@ export const teams = pgTable(
       .notNull()
       .references(() => workspaces.id),
     name: text("name").notNull(),
+    memberCount: integer("member_count").notNull().default(0),
     departmentId: text("department_id"),
     managerId: text("manager_id"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -352,6 +353,7 @@ export const teamMember = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    membershipKey: text("membership_key").unique(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [unique("team_member_unique").on(t.teamId, t.userId)],

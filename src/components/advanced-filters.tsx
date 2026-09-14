@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { Workspace } from "@/lib/types";
 import type { TaskFilters } from "@/lib/task-filters";
 import { Button } from "./ui/button";
-import en from "@/messages/en.json";
+import { useMessages, useDates } from "@/components/locale-provider";
 export function AdvancedFilters({
   w,
   value,
@@ -15,6 +15,8 @@ export function AdvancedFilters({
   onChange: (f: TaskFilters) => void;
   demo?: boolean;
 }) {
+  const en = useMessages();
+
   const [items, setItems] = useState<
       { id: string; name: string; filters: TaskFilters }[]
     >([]),

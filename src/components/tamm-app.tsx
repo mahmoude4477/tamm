@@ -1,4 +1,7 @@
 "use client";
+import { LocalePicker, useLocale } from "./locale-provider";
+import { TaskCalendar } from "./task-calendar";
+import { ReportingPanel } from "./reporting-panel";
 import { AdvancedFilters } from "./advanced-filters";
 import { matchesFilters, type TaskFilters } from "@/lib/task-filters";
 import { TaskTable } from "./task-table";
@@ -18,7 +21,7 @@ import { createDemo } from "@/lib/demo";
 import { can, canEditTask } from "@/lib/permissions";
 import { activeTasks, isDone, isOpen } from "@/lib/reports";
 import type { Task, Workspace } from "@/lib/types";
-import en from "@/messages/en.json";
+import { useMessages, useDates } from "@/components/locale-provider";
 import {
   Activity,
   ArrowRight,
@@ -50,7 +53,6 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { formatDate, today } from "@/lib/dates";
 import { ProjectForm, TaskDetail, TaskForm } from "./task-editor";
 import {
   Calendar,
@@ -89,7 +91,14 @@ export function TammApp({
   demo?: boolean;
   initialPage?: Page;
 }) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
+  const { setTimezone } = useLocale();
   const [w, setW] = useState<Workspace | null>(null);
+  useEffect(() => {
+    setTimezone(w?.settings?.timezone ?? "UTC");
+  }, [w?.settings?.timezone, setTimezone]);
   const [page, setPage] = useState<Page>(initialPage);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [view, setView] = useState<"board" | "list" | "calendar">("board");
@@ -141,7 +150,7 @@ export function TammApp({
   workspaceRef.current = w;
   useEffect(() => {
     if (demo) {
-      setW(createDemo());
+      setW(createDemo(en));
       setLoaded(true);
       return;
     }
@@ -474,6 +483,7 @@ export function TammApp({
             ))}
         </nav>
         <div className="sidebar-bottom">
+          <LocalePicker />
           {demo && (
             <div className="demo-note">
               <span>{en.nav.demo}</span>
@@ -947,11 +957,11 @@ export function TammApp({
                 />
               )}
               {view === "calendar" && (
-                <Calendar
+                <TaskCalendar
+                  w={w}
                   tasks={filtered}
-                  month={month}
-                  setMonth={setMonth}
                   open={setTaskId}
+                  openProject={(id) => navigate("projects", id)}
                 />
               )}{" "}
               {!filtered.length && view !== "board" && (
@@ -961,7 +971,12 @@ export function TammApp({
           )}
           {page === "team" && <TeamPanel w={w} send={send} busy={busy} />}
           {page === "reports" && (
-            <ReportPanel w={w} month={month} setMonth={setMonth} />
+            <ReportingPanel
+              w={w}
+              month={month}
+              setMonth={setMonth}
+              demo={demo}
+            />
           )}
           {page === "activity" && (
             <>
@@ -1098,6 +1113,45 @@ export function TammApp({
                 >
                   <Layers size={16} />
                   {p.name}
+                </button>
+              ))}
+            {w.members
+              .filter((m) =>
+                `${m.name} ${m.jobTitle ?? ""}`
+                  .toLowerCase()
+                  .includes(search.toLowerCase()),
+              )
+              .slice(0, 6)
+              .map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => {
+                    setCommandOpen(false);
+                    navigate("team");
+                  }}
+                >
+                  <Users size={16} />
+                  {m.name}
+                  <small>{m.jobTitle}</small>
+                </button>
+              ))}
+            {w.teams
+              .filter((t) =>
+                t.name.toLowerCase().includes(search.toLowerCase()),
+              )
+              .slice(0, 6)
+              .map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    setCommandOpen(false);
+                    navigate("myTasks");
+                    setPage("projects");
+                    setAdvanced({ team: t.id });
+                  }}
+                >
+                  <Users size={16} />
+                  {t.name}
                 </button>
               ))}
           </div>

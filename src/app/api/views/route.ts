@@ -34,14 +34,12 @@ export async function POST(request: Request) {
     const body = z
       .object({ name: z.string().trim().min(1).max(100), filters })
       .parse(await request.json());
-    await db
-      .insert(savedViews)
-      .values({
-        id: crypto.randomUUID(),
-        workspaceId: w.id,
-        userId: w.currentUserId,
-        ...body,
-      });
+    await db.insert(savedViews).values({
+      id: crypto.randomUUID(),
+      workspaceId: w.id,
+      userId: w.currentUserId,
+      ...body,
+    });
     return Response.json({ ok: true });
   } catch (e) {
     return apiError(e);

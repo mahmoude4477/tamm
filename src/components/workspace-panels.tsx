@@ -11,7 +11,7 @@ import { authClient } from "@/lib/auth-client";
 import { can } from "@/lib/permissions";
 import { activeTasks, isOpen, monthlyReport } from "@/lib/reports";
 import type { Role, Task, Workspace } from "@/lib/types";
-import en from "@/messages/en.json";
+import { useMessages, useDates } from "@/components/locale-provider";
 import {
   ChevronLeft,
   ChevronRight,
@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import { today } from "@/lib/dates";
 import type { Send } from "./task-editor";
 import { Avatar, download, Heading, StatusDot } from "./workspace-shared";
 export function Calendar({
@@ -36,6 +35,9 @@ export function Calendar({
   setMonth: (m: string) => void;
   open: (id: string) => void;
 }) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const [y, m] = month.split("-").map(Number);
   const first = new Date(Date.UTC(y, m - 1, 1));
   const days = Array.from(
@@ -117,6 +119,9 @@ export function TeamPanel({
   send: Send;
   busy: boolean;
 }) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const [dialog, setDialog] = useState<"member" | "team" | "department" | null>(
     null,
   );
@@ -359,6 +364,9 @@ export function ReportPanel({
   month: string;
   setMonth: (value: string) => void;
 }) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const report = monthlyReport(w, month);
   const rows = w.members.map((m) => {
     const completed = report.completed.filter((t) => t.assigneeId === m.id);
@@ -468,6 +476,9 @@ export function SettingsPanel({
   busy: boolean;
   demo: boolean;
 }) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
   return (
     <>
@@ -585,6 +596,9 @@ export function SettingsPanel({
   );
 }
 function AccountSettings() {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   return (

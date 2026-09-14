@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@/lib/utils";
-import en from "@/messages/en.json";
+import { useMessages, useDates } from "@/components/locale-provider";
 import * as Primitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import * as React from "react";
@@ -13,6 +13,8 @@ export function DialogContent({
   children,
   ...props
 }: React.ComponentProps<typeof Primitive.Content>) {
+  const en = useMessages();
+
   return (
     <Primitive.Portal>
       <Primitive.Overlay className="dialog-overlay" />

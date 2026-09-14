@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import type { Workspace, Task } from "@/lib/types";
 import { can } from "@/lib/permissions";
-import en from "@/messages/en.json";
+import { useMessages, useDates } from "@/components/locale-provider";
 export function TransferPanel({ w, task }: { w: Workspace; task?: Task }) {
+  const en = useMessages();
+
   const [items, setItems] = useState<
       {
         id: string;
@@ -119,6 +121,8 @@ export function TransferPanel({ w, task }: { w: Workspace; task?: Task }) {
   );
 }
 export function TemplatePanel({ w }: { w: Workspace }) {
+  const en = useMessages();
+
   const [items, setItems] = useState<
       { id: string; name: string; data: { kind: "task" | "project" } }[]
     >([]),

@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "./ui/button";
-import en from "@/messages/en.json";
+import { useMessages, useDates } from "@/components/locale-provider";
 export function AccountPanel() {
+  const en = useMessages();
+
   const { data: session } = authClient.useSession();
   const [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),

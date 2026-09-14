@@ -1825,3 +1825,65 @@ tr:last-child td {
     min-height: 40px;
   }
 }
+.advanced-filters {
+  margin-block: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.advanced-filters summary {
+  cursor: pointer;
+  font-weight: 550;
+}
+.advanced-filters .form-grid {
+  margin-block: 12px;
+}
+.locale-picker {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.locale-picker select {
+  min-width: 96px;
+}
+.calendar-scroll {
+  overflow: auto;
+}
+.calendar-grid {
+  min-width: 620px;
+}
+.calendar-day {
+  min-width: 0;
+  grid-template-columns: 1fr;
+}
+.calendar-day > div {
+  min-height: 320px;
+}
+[dir="rtl"] .dialog-close {
+  right: auto;
+  left: 15px;
+}
+[dir="rtl"] .task-detail {
+  right: auto;
+  left: 0;
+}
+[dir="rtl"] .priority,
+[dir="rtl"] .task-row {
+  text-align: start;
+}
+[dir="rtl"] .arabic {
+  margin-inline-start: 6px;
+}
+[dir="rtl"] .sidebar {
+  border-right: 0;
+  border-inline-end: 1px solid var(--border);
+}
+@media (max-width: 800px) {
+  [dir="rtl"] .sidebar {
+    transform: translateX(100%);
+  }
+  [dir="rtl"] .sidebar.is-open {
+    transform: translateX(0);
+  }
+}

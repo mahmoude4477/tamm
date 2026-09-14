@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, asc, inArray } from "drizzle-orm";
+import { and, eq, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import * as s from "@/db/schema";
 import type { Workspace } from "@/lib/types";
@@ -219,6 +219,13 @@ export async function saveWorkspace(
         )
         .onConflictDoNothing();
   }
+  for (const team of next.teams)
+    await tx
+      .update(s.teams)
+      .set({
+        memberCount: sql`(select count(*)::integer from ${s.teamMember} where ${s.teamMember.teamId} = ${team.id})`,
+      })
+      .where(eq(s.teams.id, team.id));
   for (const status of next.statuses)
     await tx
       .insert(s.statuses)

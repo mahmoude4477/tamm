@@ -7,8 +7,10 @@ import type { Send } from "./task-editor";
 import { Button } from "./ui/button";
 import { InvitationPanel } from "./organization-panel";
 import { FilePanel } from "./collaboration-panel";
-import en from "@/messages/en.json";
+import { useMessages, useDates } from "@/components/locale-provider";
 function MemberOptions({ w }: { w: Workspace }) {
+  const en = useMessages();
+
   return (
     <>
       <option value="">{en.collaboration.none}</option>
@@ -33,6 +35,8 @@ export function AdminPanel({
   busy: boolean;
   demo: boolean;
 }) {
+  const en = useMessages();
+
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
   return (
     <div className="admin-stack">
@@ -458,6 +462,8 @@ function ProjectSettings({
   busy: boolean;
   demo: boolean;
 }) {
+  const en = useMessages();
+
   return (
     <details>
       <summary>
@@ -601,6 +607,8 @@ function ProjectSettings({
   );
 }
 function AuditPanel({ w }: { w: Workspace }) {
+  const en = useMessages();
+
   const [items, setItems] = useState<
       {
         id: string;

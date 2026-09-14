@@ -1,11 +1,22 @@
 import en from "@/messages/en.json";
-export const today = () => new Date().toISOString().slice(0, 10);
-export function formatDate(value: string | null) {
+export const today = (timeZone = "UTC") =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+export function formatDate(
+  value: string | null,
+  locale = "en",
+  timeZone = "UTC",
+  fallback = en.common.noDate,
+) {
   return value
-    ? new Intl.DateTimeFormat("en", {
+    ? new Intl.DateTimeFormat(locale, {
         month: "short",
         day: "numeric",
-        timeZone: "UTC",
+        timeZone: /^\d{4}-\d{2}-\d{2}$/.test(value) ? "UTC" : timeZone,
       }).format(new Date(value))
-    : en.common.noDate;
+    : fallback;
 }

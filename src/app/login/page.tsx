@@ -4,8 +4,14 @@ import Link from "next/link";
 import { Check, ArrowRight } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import en from "@/messages/en.json";
+import {
+  LocalePicker,
+  useMessages,
+  useDates,
+} from "@/components/locale-provider";
 export default function Login() {
+  const en = useMessages();
+
   const [signup, setSignup] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -49,6 +55,7 @@ export default function Login() {
   }
   return (
     <main className="auth-page">
+      <LocalePicker />
       <Link className="brand" href="/">
         <span className="brand-mark">
           <Check />

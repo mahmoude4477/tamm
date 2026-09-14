@@ -14,8 +14,8 @@ import type { Workspace, Task } from "@/lib/types";
 import type { Send } from "./task-editor";
 import { can } from "@/lib/permissions";
 import { Button } from "./ui/button";
-import { formatDate } from "@/lib/dates";
-import en from "@/messages/en.json";
+
+import { useMessages, useDates } from "@/components/locale-provider";
 export function TaskTable({
   w,
   tasks,
@@ -29,6 +29,9 @@ export function TaskTable({
   send: Send;
   busy: boolean;
 }) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const [sorting, setSorting] = useState<SortingState>([]),
     [visibility, setVisibility] = useState<VisibilityState>({}),
     [selection, setSelection] = useState({}),

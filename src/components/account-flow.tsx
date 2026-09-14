@@ -3,17 +3,24 @@ import { useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "./ui/button";
-import en from "@/messages/en.json";
+import {
+  LocalePicker,
+  useMessages,
+  useDates,
+} from "@/components/locale-provider";
 export function AccountFlow({
   mode,
 }: {
   mode: "forgot" | "reset" | "twoFactor" | "invite";
 }) {
+  const en = useMessages();
+
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [backup, setBackup] = useState(false);
   return (
     <main className="auth-page">
+      <LocalePicker />
       <Link className="brand" href="/">
         {en.brand.name} <span lang="ar">{en.brand.arabic}</span>
       </Link>

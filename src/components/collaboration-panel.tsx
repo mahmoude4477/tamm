@@ -11,7 +11,7 @@ import {
 import type { Workspace, Task, Attachment, Notification } from "@/lib/types";
 import type { Send } from "./task-editor";
 import { can } from "@/lib/permissions";
-import en from "@/messages/en.json";
+import { useMessages, useDates } from "@/components/locale-provider";
 export function FilePanel({
   w,
   taskId,
@@ -23,6 +23,8 @@ export function FilePanel({
   projectId?: string;
   demo?: boolean;
 }) {
+  const en = useMessages();
+
   const [files, setFiles] = useState<Attachment[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -87,7 +89,9 @@ export function FilePanel({
             <div className="file-row" key={file.id}>
               <span>
                 {file.name}
-                <small>{Math.ceil(file.size / 1024)} KB</small>
+                <small>
+                  {Math.ceil(file.size / 1024)} {en.common.kilobytes}
+                </small>
               </span>
               <a href={`${url}&id=${encodeURIComponent(file.id)}`}>
                 {en.collaboration.download}
@@ -146,6 +150,8 @@ export function CommentPanel({
   send: Send;
   busy: boolean;
 }) {
+  const en = useMessages();
+
   const [reply, setReply] = useState<string | null>(null),
     [edit, setEdit] = useState<string | null>(null);
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
@@ -338,6 +344,8 @@ export function Inbox({
   w: Workspace;
   onTask: (id: string) => void;
 }) {
+  const en = useMessages();
+
   const [open, setOpen] = useState(false),
     [items, setItems] = useState<Notification[]>([]),
     [enabled, setEnabled] = useState<string[]>([...kinds]),

@@ -98,17 +98,15 @@ export async function POST(request: Request) {
             ),
           );
         if (pending) throw new DomainError("conflict");
-        await tx
-          .insert(transferRequests)
-          .values({
-            id: crypto.randomUUID(),
-            workspaceId: w.id,
-            taskId: task.id,
-            requestedBy: actor.id,
-            fromId: task.assigneeId,
-            toId: target.id,
-            reason: body.reason,
-          });
+        await tx.insert(transferRequests).values({
+          id: crypto.randomUUID(),
+          workspaceId: w.id,
+          taskId: task.id,
+          requestedBy: actor.id,
+          fromId: task.assigneeId,
+          toId: target.id,
+          reason: body.reason,
+        });
       } else {
         if (!can(actor.role, "task.assign", actor.permissions))
           throw new DomainError("forbidden");
@@ -149,16 +147,14 @@ export async function POST(request: Request) {
           })
           .where(eq(transferRequests.id, body.id));
       }
-      await tx
-        .insert(auditLogs)
-        .values({
-          id: crypto.randomUUID(),
-          workspaceId: w.id,
-          actorId: actor.id,
-          action: `transfer.${body.type}`,
-          entityId: "id" in body ? body.id : body.taskId,
-          detail: body,
-        });
+      await tx.insert(auditLogs).values({
+        id: crypto.randomUUID(),
+        workspaceId: w.id,
+        actorId: actor.id,
+        action: `transfer.${body.type}`,
+        entityId: "id" in body ? body.id : body.taskId,
+        detail: body,
+      });
     });
     return Response.json({ ok: true });
   } catch (e) {

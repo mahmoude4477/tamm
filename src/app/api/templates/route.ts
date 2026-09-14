@@ -100,14 +100,12 @@ export async function POST(request: Request) {
               description: project.description,
               color: project.color,
             };
-        await tx
-          .insert(taskTemplates)
-          .values({
-            id: crypto.randomUUID(),
-            workspaceId: w.id,
-            name: body.name,
-            data,
-          });
+        await tx.insert(taskTemplates).values({
+          id: crypto.randomUUID(),
+          workspaceId: w.id,
+          name: body.name,
+          data,
+        });
       } else {
         const [template] = await tx
           .select()
@@ -181,16 +179,14 @@ export async function POST(request: Request) {
           return visibleWorkspace(next);
         }
       }
-      await tx
-        .insert(auditLogs)
-        .values({
-          id: crypto.randomUUID(),
-          workspaceId: w.id,
-          actorId: actor.id,
-          action: `template.${body.type}`,
-          entityId: "id" in body ? body.id : null,
-          detail: body,
-        });
+      await tx.insert(auditLogs).values({
+        id: crypto.randomUUID(),
+        workspaceId: w.id,
+        actorId: actor.id,
+        action: `template.${body.type}`,
+        entityId: "id" in body ? body.id : null,
+        detail: body,
+      });
       return null;
     });
     return Response.json({ workspace: result });

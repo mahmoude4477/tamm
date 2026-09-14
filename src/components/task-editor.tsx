@@ -6,11 +6,10 @@ import { Button } from "@/components/ui/button";
 import { type Command } from "@/lib/commands";
 import { can, canEditTask } from "@/lib/permissions";
 import type { Task, Workspace } from "@/lib/types";
-import en from "@/messages/en.json";
+import { useMessages, useDates } from "@/components/locale-provider";
 import { ArrowRight, Check, Flag, Plus } from "lucide-react";
 import { useState } from "react";
 
-import { formatDate } from "@/lib/dates";
 import { StatusDot } from "./workspace-shared";
 export type Send = (
   command: Command | { type: "member.add"; email: string },
@@ -29,6 +28,9 @@ export function TaskForm({
   busy: boolean;
   onSubmit: (data: TaskData, reason?: string) => Promise<void>;
 }) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   return (
     <form
       className="editor-form"
@@ -307,6 +309,9 @@ export function ProjectForm({
     data: Extract<Command, { type: "project.create" }>["data"],
   ) => Promise<void>;
 }) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   return (
     <form
       className="editor-form"
@@ -386,6 +391,9 @@ export function TaskDetail({
   demo?: boolean;
   activity: React.ReactNode;
 }) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const [editing, setEditing] = useState(false);
   const [review, setReview] = useState("");
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
