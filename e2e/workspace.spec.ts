@@ -170,5 +170,9 @@ test("overview accessibility and reduced-motion controls", async ({ page }) => {
     })),
   ).toEqual([]);
   if (process.env.CAPTURE_README === "true")
-    await page.screenshot({ path: "docs/preview.png", fullPage: false });
+    await page.screenshot({
+      path: "docs/preview.png",
+      fullPage: false,
+      style: "nextjs-portal { display: none; }",
+    });
 });

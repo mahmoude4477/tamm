@@ -13,6 +13,8 @@ Tamm is an open-source task and project workspace for internal teams. Plan work,
 
 **V1 is being finalized in [pull request #2](https://github.com/mahmoude4477/tamm/pull/2).** The public demo uses fictional data. It contains no personal profile, organization credentials, or production records.
 
+![Tamm workspace overview with fictional projects and tasks](docs/preview.png)
+
 ## What you can do
 
 | Area | Included in V1 |

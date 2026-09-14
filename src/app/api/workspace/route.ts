@@ -106,16 +106,14 @@ export async function POST(request: Request) {
           identity.user.email,
         ).statuses;
         await saveWorkspace(tx, current);
-        await tx
-          .insert(auditLogs)
-          .values({
-            id: crypto.randomUUID(),
-            workspaceId: current.id,
-            actorId: identity.user.id,
-            action: "workspace.created",
-            entityId: current.id,
-            detail: { name },
-          });
+        await tx.insert(auditLogs).values({
+          id: crypto.randomUUID(),
+          workspaceId: current.id,
+          actorId: identity.user.id,
+          action: "workspace.created",
+          entityId: current.id,
+          detail: { name },
+        });
         return current;
       });
       return Response.json(
@@ -160,14 +158,12 @@ export async function POST(request: Request) {
           teamId: null,
           active: true,
         });
-        await tx
-          .insert(memberships)
-          .values({
-            id: crypto.randomUUID(),
-            workspaceId: row.id,
-            userId: account.id,
-            role: "member",
-          });
+        await tx.insert(memberships).values({
+          id: crypto.randomUUID(),
+          workspaceId: row.id,
+          userId: account.id,
+          role: "member",
+        });
         next.events.push({
           id: crypto.randomUUID(),
           actorId: actor.id,
@@ -196,20 +192,18 @@ export async function POST(request: Request) {
         next.customRoles?.find(
           (r) => !current.customRoles?.some((old) => old.id === r.id),
         )?.id;
-      await tx
-        .insert(auditLogs)
-        .values({
-          id: crypto.randomUUID(),
-          workspaceId: row.id,
-          actorId: actor.id,
-          action: body.type,
-          entityId: entityId ?? null,
-          detail: {
-            command: body,
-            before: auditEntity(current, { ...body, id: entityId }),
-            after: auditEntity(next, { ...body, id: entityId }),
-          },
-        });
+      await tx.insert(auditLogs).values({
+        id: crypto.randomUUID(),
+        workspaceId: row.id,
+        actorId: actor.id,
+        action: body.type,
+        entityId: entityId ?? null,
+        detail: {
+          command: body,
+          before: auditEntity(current, { ...body, id: entityId }),
+          after: auditEntity(next, { ...body, id: entityId }),
+        },
+      });
       return visibleWorkspace(next);
     });
     return Response.json(

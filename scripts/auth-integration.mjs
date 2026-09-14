@@ -1,3 +1,4 @@
+import { testFetch as fetch } from "./test-http.mjs";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { execFileSync } from "node:child_process";

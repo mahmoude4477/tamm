@@ -1,3 +1,4 @@
+import { testFetch as fetch } from "./test-http.mjs";
 import assert from "node:assert/strict";
 const base = "http://localhost:3000";
 async function signup(name, email) {

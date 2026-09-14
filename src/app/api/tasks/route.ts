@@ -103,7 +103,7 @@ export async function GET(request: Request) {
         ? sql`exists(select 1 from ${s.taskDependencies} where ${s.taskDependencies.workspaceId}=${member.workspaceId} and ${s.taskDependencies.taskId}=${s.tasks.id})`
         : undefined,
       q.team || q.department
-        ? sql`exists(select 1 from ${s.memberships} m where m.workspace_id=${member.workspaceId} and (m.user_id=${s.tasks.assigneeId} or ${s.tasks.assigneeIds} @> jsonb_build_array(m.user_id)) and exists(select 1 from ${s.teams} tm where tm.workspace_id=${member.workspaceId} and ${q.team ? sql`tm.id=${q.team}` : sql`tm.department_id=${q.department}`} and (m.team_id=tm.id or exists(select 1 from ${s.teamMember} link where link.user_id=m.user_id and link.team_id=tm.id))))`
+        ? sql`exists(select 1 from ${s.memberships} m where m.workspace_id=${member.workspaceId} and (m.user_id=${s.tasks.assigneeId} or ${s.tasks.assigneeIds} @> jsonb_build_array(m.user_id)) and exists(select 1 from ${s.teams} tm where tm.workspace_id=${member.workspaceId} and ${q.team ? sql`tm.id=${q.team}` : sql`true`} and ${q.department ? sql`tm.department_id=${q.department}` : sql`true`} and (m.team_id=tm.id or exists(select 1 from ${s.teamMember} link where link.user_id=m.user_id and link.team_id=tm.id))))`
         : undefined,
       q.scope === "created"
         ? eq(s.tasks.reporterId, identity.user.id)
@@ -129,7 +129,7 @@ export async function GET(request: Request) {
     );
     const sortColumns = {
       title: s.tasks.title,
-      priority: s.tasks.priority,
+      priority: sql`case ${s.tasks.priority} when 'urgent' then 0 when 'high' then 1 when 'medium' then 2 else 3 end`,
       dueDate: s.tasks.dueDate,
       estimatedHours: s.tasks.estimatedHours,
       actualHours: s.tasks.actualHours,
