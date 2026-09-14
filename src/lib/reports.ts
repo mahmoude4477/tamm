@@ -26,6 +26,14 @@ export function monthlyReport(w: Workspace, month: string) {
   );
   const dated = completed.filter((t) => t.dueDate);
   return {
+    reopened: w.events.filter(
+      (e) =>
+        e.createdAt.startsWith(month) &&
+        tasks.some((t) => t.id === e.taskId) &&
+        w.statuses.find((s) => s.id === e.previousStatusId)?.category ===
+          "done" &&
+        w.statuses.find((s) => s.id === e.newStatusId)?.category !== "done",
+    ).length,
     created: tasks.filter((t) => t.createdAt.startsWith(month)).length,
     completed,
     onTime: dated.length

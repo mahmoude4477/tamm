@@ -318,6 +318,9 @@ export const activityEvents = pgTable(
     taskId: text("task_id"),
     actorId: text("actor_id").notNull(),
     action: text("action").notNull(),
+    projectId: text("project_id"),
+    previousStatusId: text("previous_status_id"),
+    newStatusId: text("new_status_id"),
     parentEventId: text("parent_event_id"),
     mentionedIds: jsonb("mentioned_ids")
       .$type<string[]>()

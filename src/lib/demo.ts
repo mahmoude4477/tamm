@@ -39,7 +39,11 @@ export function createDemo(messages = en): Workspace {
     messages.demo.people[0],
     "alex@example.com",
   );
-  w.statuses = w.statuses.map((s, i) => ({ ...s, id: `status-${i}` }));
+  w.statuses = w.statuses.map((s, i) => ({
+    ...s,
+    name: messages.demo.statuses[i],
+    id: `status-${i}`,
+  }));
   w.members = messages.demo.people.map((name, i) => ({
     id: `person-${i}`,
     name,

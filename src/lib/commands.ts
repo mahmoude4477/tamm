@@ -41,6 +41,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     data: taskFields.partial(),
     reason: z.string().trim().max(2000).optional(),
     archived: z.boolean().optional(),
+    addTag: z.string().trim().min(1).max(40).optional(),
   }),
   z.object({ type: z.literal("task.create"), data: taskFields }),
   z.object({
@@ -122,13 +123,18 @@ export function applyCommand(
     for (const item of command.items) {
       const task = next.tasks.find((t) => t.id === item.id);
       if (!task || task.version !== item.version) fail("conflict");
-      if (Object.keys(command.data).length)
+      if (Object.keys(command.data).length || command.addTag)
         next = applyCommand(
           next,
           {
             type: "task.update",
             ...item,
-            data: command.data,
+            data: {
+              ...command.data,
+              ...(command.addTag
+                ? { tags: [...new Set([...task.tags, command.addTag])] }
+                : {}),
+            },
             reason: command.reason,
           },
           now,
@@ -188,7 +194,12 @@ export function applyCommand(
     });
   const findTask = (taskId: string) => {
     const task = w.tasks.find((t) => t.id === taskId);
-    if (!task || !canSeeProject(w, task.projectId)) fail("notFound");
+    if (
+      !task ||
+      !canSeeProject(w, task.projectId) ||
+      w.projects.find((p) => p.id === task.projectId)?.deletedAt
+    )
+      fail("notFound");
     return task;
   };
   const checkTask = (t: Task) => {
@@ -198,7 +209,10 @@ export function applyCommand(
     )
       fail("project");
     if (!w.statuses.some((s) => s.id === t.statusId)) fail("status");
-    if (t.assigneeId && !w.members.some((m) => m.id === t.assigneeId))
+    if (
+      t.assigneeId &&
+      !w.members.some((m) => m.id === t.assigneeId && m.active !== false)
+    )
       fail("member");
     if (t.startDate && t.dueDate && t.startDate > t.dueDate) fail("invalid");
     for (const memberId of [...(t.assigneeIds ?? []), ...(t.watcherIds ?? [])])
@@ -234,14 +248,24 @@ export function applyCommand(
     const project = w.projects.find((p) => p.id === t.projectId)!;
     if (project.deletedAt) fail("project");
     if (
-      project.visibility === "private" &&
-      t.assigneeId &&
-      !project.memberIds.includes(t.assigneeId) &&
-      !w.members.some(
-        (m) => m.id === t.assigneeId && ["owner", "admin"].includes(m.role),
+      [t.assigneeId, ...(t.assigneeIds ?? [])].some(
+        (id) => id && !canSeeProject({ ...w, currentUserId: id }, project.id),
       )
     )
       fail("member");
+    const done = (task: Task) =>
+      w.statuses.find((s) => s.id === task.statusId)?.category === "done";
+    if (
+      !done(t) &&
+      w.tasks.some(
+        (task) =>
+          task.id !== t.id &&
+          !task.deletedAt &&
+          done(task) &&
+          (task.id === t.parentId || task.dependencyIds.includes(t.id)),
+      )
+    )
+      fail("dependency");
     const walk = (current: string, seen: Set<string>) => {
       if (current === t.id) fail("cycle");
       if (seen.has(current)) return;
@@ -278,6 +302,8 @@ export function applyCommand(
     requirePermission("task.create");
     if (command.data.assigneeId && command.data.assigneeId !== actor.id)
       requirePermission("task.assign");
+    if (command.data.assigneeIds?.some((id) => id !== actor.id))
+      requirePermission("task.assign");
     const t: Task = {
       ...command.data,
       id: uuid(),
@@ -302,8 +328,24 @@ export function applyCommand(
     const t = findTask(cmd.id);
     if (command.type !== "task.restore" && t.deletedAt) fail("notFound");
     if (command.type === "task.comment") {
-      if (actor.role === "viewer") fail("forbidden");
-    } else if (!canEditTask(w, t)) fail("forbidden");
+      if (!can(actor.role, "comment.create", actor.permissions))
+        fail("forbidden");
+    } else if (command.type === "task.review") requirePermission("task.review");
+    else if (
+      ["task.archive", "task.delete", "task.restore"].includes(command.type)
+    )
+      requirePermission("task.delete");
+    else if (
+      !(
+        command.type === "task.update" &&
+        can(actor.role, "task.assign", actor.permissions) &&
+        Object.keys(command.data).every((key) =>
+          ["assigneeId", "assigneeIds"].includes(key),
+        )
+      ) &&
+      !canEditTask(w, t)
+    )
+      fail("forbidden");
     if (command.type === "task.update") {
       if (t.version !== command.version) fail("conflict");
       const next = { ...t, ...command.data };
@@ -364,9 +406,13 @@ export function applyCommand(
             : "task.updated",
         t.id,
         command.reason ?? "",
-        isTransfer
-          ? { previousAssigneeId: old, newAssigneeId: t.assigneeId }
-          : {},
+        {
+          previousStatusId: previousStatus?.id,
+          newStatusId: t.statusId,
+          ...(isTransfer
+            ? { previousAssigneeId: old, newAssigneeId: t.assigneeId }
+            : {}),
+        },
       );
     }
     if (command.type === "task.review") {
@@ -379,6 +425,7 @@ export function applyCommand(
         (s) => s.category === (command.approve ? "done" : "active"),
       );
       if (!s) fail("status");
+      const previousStatusId = t.statusId;
       const next = { ...t, statusId: s.id };
       checkTask(next);
       Object.assign(t, next, {
@@ -390,6 +437,7 @@ export function applyCommand(
         command.approve ? "task.approved" : "task.returned",
         t.id,
         command.comment,
+        { previousStatusId, newStatusId: s.id },
       );
     }
     if (command.type === "task.comment") {
@@ -449,12 +497,14 @@ export function applyCommand(
       archived: false,
       memberIds: [...new Set([...command.data.memberIds, actor.id])],
     });
-    emit("project.created", null, command.data.name);
+    emit("project.created", null, command.data.name, {
+      projectId: w.projects.at(-1)!.id,
+    });
   } else if (command.type === "project.archive") {
     requirePermission("project.manage");
     if (!canSeeProject(w, command.id)) fail("notFound");
     w.projects.find((p) => p.id === command.id)!.archived = command.archived;
-    emit("project.updated", null);
+    emit("project.updated", null, "", { projectId: command.id });
   } else if (command.type === "workflow.create") {
     requirePermission("workflow.manage");
     w.statuses.push({
@@ -556,16 +606,21 @@ export function visibleWorkspace(w: Workspace): Workspace {
   );
   return {
     ...w,
+    attachmentTaskIds: w.attachmentTaskIds?.filter((id) =>
+      tasks.some((t) => t.id === id),
+    ),
     projects,
     tasks,
     events: w.events.filter((e) =>
       e.taskId
         ? tasks.some((t) => t.id === e.taskId)
-        : can(
-            w.members.find((m) => m.id === w.currentUserId)!.role,
-            "user.manage",
-            w.members.find((m) => m.id === w.currentUserId)?.permissions,
-          ),
+        : e.projectId
+          ? projects.some((p) => p.id === e.projectId)
+          : can(
+              w.members.find((m) => m.id === w.currentUserId)!.role,
+              "user.manage",
+              w.members.find((m) => m.id === w.currentUserId)?.permissions,
+            ),
     ),
   };
 }

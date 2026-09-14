@@ -7,3 +7,6 @@ out/
 coverage/
 
 .data/
+
+test-results/
+playwright-report/

@@ -94,6 +94,9 @@ export async function notifyDue(tx: Transaction, w: Workspace) {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
+  const dueSoon = new Date(`${date}T12:00:00Z`);
+  dueSoon.setUTCDate(dueSoon.getUTCDate() + 3);
+  const horizon = dueSoon.toISOString().slice(0, 10);
   const [prefs] = await tx
     .select()
     .from(notificationPreferences)
@@ -108,7 +111,7 @@ export async function notifyDue(tx: Transaction, w: Workspace) {
       t.deletedAt ||
       t.archived ||
       !t.dueDate ||
-      t.dueDate > date ||
+      t.dueDate > horizon ||
       ![t.assigneeId, ...(t.assigneeIds ?? [])].includes(w.currentUserId) ||
       ["done", "cancelled"].includes(
         w.statuses.find((s) => s.id === t.statusId)?.category ?? "",

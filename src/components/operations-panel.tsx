@@ -254,7 +254,16 @@ export function TemplatePanel({ w }: { w: Workspace }) {
                 </label>
               </>
             )}
-            <Button disabled={busy}>{en.views.useTemplate}</Button>
+            <Button
+              disabled={
+                busy ||
+                !can(actor.role, "task.create", actor.permissions) ||
+                (t.data.kind === "project" &&
+                  !can(actor.role, "project.manage", actor.permissions))
+              }
+            >
+              {en.views.useTemplate}
+            </Button>
           </form>
           {can(actor.role, "project.manage", actor.permissions) && (
             <Button

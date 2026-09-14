@@ -8,7 +8,9 @@ export type Permission =
   | "project.manage"
   | "report.view"
   | "user.manage"
-  | "workflow.manage";
+  | "workflow.manage"
+  | "comment.create"
+  | "file.upload";
 export const permissionKeys = [
   "task.create",
   "task.edit",
@@ -19,13 +21,15 @@ export const permissionKeys = [
   "report.view",
   "user.manage",
   "workflow.manage",
+  "comment.create",
+  "file.upload",
 ] as const;
 const all: Permission[] = [...permissionKeys];
 const grants: Record<Role, readonly Permission[]> = {
   owner: all,
   admin: all,
   manager: all.filter((p) => p !== "user.manage"),
-  member: ["task.create", "task.edit"],
+  member: ["task.create", "task.edit", "comment.create", "file.upload"],
   viewer: [],
 };
 export function can(role: Role, permission: Permission, overrides?: string[]) {

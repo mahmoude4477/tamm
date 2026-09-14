@@ -281,3 +281,87 @@ await api(outsider, "/api/auth/reset-password", {
 console.log(
   "V1 integration passed: comments, scoped files, audit access, notifications, saved views, invitations, deactivation, profile, sessions, passkey options and password recovery.",
 );
+
+const currentOwner = (
+  await api(owner, `/api/workspace?workspaceId=${workspaceId}`)
+).payload.workspace;
+const pageOne = await api(
+  owner,
+  `/api/tasks?workspaceId=${workspaceId}&size=1&page=0`,
+);
+assert.equal(pageOne.payload.items.length, 1);
+assert.ok(pageOne.payload.total >= 1);
+const limited = await api(
+  member,
+  `/api/tasks?workspaceId=${workspaceId}&size=100`,
+);
+assert.ok(limited.payload.items.every((t) => t.projectId === projectId));
+await api(owner, "/api/auth/organization/update-member-role", {
+  body: {
+    organizationId: workspaceId,
+    memberId: (
+      await api(
+        owner,
+        `/api/auth/organization/list-members?organizationId=${workspaceId}`,
+      )
+    ).payload.members.find((m) => m.userId === memberId).id,
+    role: "admin",
+  },
+  expected: 400,
+});
+await api(owner, `/api/templates?workspaceId=${workspaceId}`, {
+  body: { type: "save", name: "Review template", taskId: task.id },
+});
+const templates = (
+  await api(owner, `/api/templates?workspaceId=${workspaceId}`)
+).payload.items;
+const applied = await api(owner, `/api/templates?workspaceId=${workspaceId}`, {
+  body: { type: "apply", id: templates[0].id, projectId },
+});
+assert.ok(applied.payload.workspace.tasks.length > currentOwner.tasks.length);
+const { default: pg } = await import("pg");
+const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+await client.connect();
+try {
+  const expired = await api(owner, "/api/auth/organization/invite-member", {
+    body: {
+      email: "expiry@example.com",
+      role: "member",
+      organizationId: workspaceId,
+    },
+  });
+  const expiredUser = await signup("Expiry Example", "expiry@example.com");
+  await client.query(
+    "UPDATE invitation SET expires_at=now()-interval '1 day' WHERE id=$1",
+    [expired.payload.id],
+  );
+  const r = await fetch(base + "/api/auth/organization/accept-invitation", {
+    method: "POST",
+    headers: {
+      Cookie: expiredUser,
+      Origin: base,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ invitationId: expired.payload.id }),
+  });
+  assert.ok(r.status >= 400);
+  const cancelled = await api(owner, "/api/auth/organization/invite-member", {
+    body: {
+      email: "cancel@example.com",
+      role: "member",
+      organizationId: workspaceId,
+    },
+  });
+  await api(owner, "/api/auth/organization/cancel-invitation", {
+    body: { invitationId: cancelled.payload.id },
+  });
+  const row = await client.query("SELECT status FROM invitation WHERE id=$1", [
+    cancelled.payload.id,
+  ]);
+  assert.equal(row.rows[0].status, "canceled");
+} finally {
+  await client.end();
+}
+console.log(
+  "V1 integration passed: paginated visibility, canonical role changes, template application, invitation expiry and revocation.",
+);

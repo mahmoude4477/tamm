@@ -11,8 +11,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "format": "prettier --write src tests scripts",
-    "format:check": "prettier --check src tests scripts"
+    "format": "prettier --write src tests scripts e2e playwright.config.ts",
+    "format:check": "prettier --check src tests scripts e2e playwright.config.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.4",
@@ -40,6 +41,8 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.0.0",
     "@types/nodemailer": "^8.0.1",

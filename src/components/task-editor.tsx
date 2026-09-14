@@ -536,7 +536,10 @@ export function TaskDetail({
                 </p>
               ))}
           </div>
-          {editable &&
+          {(editable ||
+            (can(actor.role, "task.review", actor.permissions) &&
+              w.statuses.find((s) => s.id === task.statusId)?.category ===
+                "review")) &&
             w.statuses.find((s) => s.id === task.statusId)?.category !==
               "done" && (
               <div className="review-box">

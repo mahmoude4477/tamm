@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, asc, inArray, sql } from "drizzle-orm";
+import { and, eq, asc, inArray, sql, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import * as s from "@/db/schema";
 import type { Workspace } from "@/lib/types";
@@ -54,6 +54,17 @@ export async function loadWorkspace(
     .from(s.taskDependencies)
     .where(eq(s.taskDependencies.workspaceId, workspaceId));
   return {
+    attachmentTaskIds: (
+      await tx
+        .select({ taskId: s.attachments.taskId })
+        .from(s.attachments)
+        .where(
+          and(
+            eq(s.attachments.workspaceId, workspaceId),
+            isNull(s.attachments.deletedAt),
+          ),
+        )
+    ).flatMap((row) => (row.taskId ? [row.taskId] : [])),
     id: row.id,
     name: row.name,
     currentUserId,
@@ -115,6 +126,9 @@ export async function loadWorkspace(
         taskId: s.activityEvents.taskId,
         actorId: s.activityEvents.actorId,
         action: s.activityEvents.action,
+        projectId: s.activityEvents.projectId,
+        previousStatusId: s.activityEvents.previousStatusId,
+        newStatusId: s.activityEvents.newStatusId,
         text: s.activityEvents.text,
         createdAt: s.activityEvents.createdAt,
         previousAssigneeId: s.activityEvents.previousAssigneeId,
@@ -226,7 +240,9 @@ export async function saveWorkspace(
         memberCount: sql`(select count(*)::integer from ${s.teamMember} where ${s.teamMember.teamId} = ${team.id})`,
       })
       .where(eq(s.teams.id, team.id));
-  for (const status of next.statuses)
+  for (const status of next.statuses.filter(
+    (s, i) => JSON.stringify(s) !== JSON.stringify(previous?.statuses[i]),
+  ))
     await tx
       .insert(s.statuses)
       .values({

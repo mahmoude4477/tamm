@@ -21,6 +21,7 @@ function scope(w: Workspace, taskId: string | null, projectId: string | null) {
   const task = taskId
     ? w.tasks.find((t) => t.id === taskId && !t.deletedAt)
     : null;
+  if (taskId && projectId) throw new DomainError("invalid");
   const project = w.projects.find(
     (p) => p.id === (task?.projectId ?? projectId) && !p.deletedAt,
   );
@@ -122,7 +123,8 @@ export async function POST(request: Request) {
   try {
     checkOrigin(request);
     const { workspace: w, actor } = await workspaceContext(request);
-    if (actor.role === "viewer") throw new DomainError("forbidden");
+    if (!can(actor.role, "file.upload", actor.permissions))
+      throw new DomainError("forbidden");
     const reader = request.body?.getReader();
     if (!reader) throw new DomainError("invalid");
     let length = 0;
@@ -167,7 +169,11 @@ export async function POST(request: Request) {
       const current = await lockedWorkspace(tx, w.id, w.currentUserId);
       scope(current, taskId, projectId);
       if (
-        current.members.find((m) => m.id === w.currentUserId)?.role === "viewer"
+        !can(
+          current.members.find((m) => m.id === w.currentUserId)!.role,
+          "file.upload",
+          current.members.find((m) => m.id === w.currentUserId)!.permissions,
+        )
       )
         throw new DomainError("forbidden");
       await tx.insert(attachments).values({
@@ -208,6 +214,8 @@ export async function DELETE(request: Request) {
     await db.transaction(async (tx) => {
       const current = await lockedWorkspace(tx, w.id, w.currentUserId);
       const actor = current.members.find((m) => m.id === w.currentUserId)!;
+      if (!can(actor.role, "file.upload", actor.permissions))
+        throw new DomainError("forbidden");
       const [file] = await tx
         .select()
         .from(attachments)

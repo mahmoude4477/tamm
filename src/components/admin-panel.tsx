@@ -7,8 +7,10 @@ import type { Send } from "./task-editor";
 import { Button } from "./ui/button";
 import { InvitationPanel } from "./organization-panel";
 import { FilePanel } from "./collaboration-panel";
-import { useMessages, useDates } from "@/components/locale-provider";
+import { useMessages, useDates, useLocale } from "@/components/locale-provider";
 function MemberOptions({ w }: { w: Workspace }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
 
   return (
@@ -35,6 +37,8 @@ export function AdminPanel({
   busy: boolean;
   demo: boolean;
 }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
 
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
@@ -462,6 +466,8 @@ function ProjectSettings({
   busy: boolean;
   demo: boolean;
 }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
 
   return (
@@ -602,11 +608,34 @@ function ProjectSettings({
           {p.deletedAt ? en.admin.restore : en.admin.delete}
         </Button>
       </div>
+      <section className="detail-section">
+        <h3>{en.nav.activity}</h3>
+        {w.events
+          .filter(
+            (e) =>
+              e.projectId === p.id ||
+              w.tasks.some((t) => t.id === e.taskId && t.projectId === p.id),
+          )
+          .slice()
+          .reverse()
+          .slice(0, 30)
+          .map((e) => (
+            <p key={e.id}>
+              {w.members.find((m) => m.id === e.actorId)?.name} ·{" "}
+              {en.events[e.action as keyof typeof en.events] ?? e.action} ·{" "}
+              {new Date(e.createdAt).toLocaleString(locale, {
+                timeZone: timezone,
+              })}
+            </p>
+          ))}
+      </section>
       {!p.deletedAt && <FilePanel w={w} projectId={p.id} demo={demo} />}
     </details>
   );
 }
 function AuditPanel({ w }: { w: Workspace }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
 
   const [items, setItems] = useState<
@@ -667,7 +696,9 @@ function AuditPanel({ w }: { w: Workspace }) {
         <details key={i.id}>
           <summary>
             {i.action} · {w.members.find((m) => m.id === i.actorId)?.name} ·{" "}
-            {new Date(i.createdAt).toLocaleString("en")}
+            {new Date(i.createdAt).toLocaleString(locale, {
+              timeZone: timezone,
+            })}
           </summary>
           <pre>{JSON.stringify(i.detail, null, 2)}</pre>
         </details>

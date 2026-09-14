@@ -2,14 +2,26 @@
 import { csvCell } from "@/lib/reports";
 import type { Workspace } from "@/lib/types";
 import { Check, CircleCheck } from "lucide-react";
-export function Avatar({ name, size = "" }: { name: string; size?: string }) {
+export function Avatar({
+  name,
+  size = "",
+  image,
+}: {
+  name: string;
+  size?: string;
+  image?: string | null;
+}) {
   return (
     <span className={`avatar ${size}`} title={name}>
-      {name
-        .split(" ")
-        .map((w) => w[0])
-        .slice(0, 2)
-        .join("")}
+      {image ? (
+        <img src={image} alt="" referrerPolicy="no-referrer" />
+      ) : (
+        name
+          .split(" ")
+          .map((w) => w[0])
+          .slice(0, 2)
+          .join("")
+      )}
     </span>
   );
 }

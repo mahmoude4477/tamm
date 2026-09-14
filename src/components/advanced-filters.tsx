@@ -76,7 +76,7 @@ export function AdvancedFilters({
           </label>
         ))}
       </div>
-      {(["overdue", "dependency"] as const).map((key) => (
+      {(["overdue", "dependency", "attachment"] as const).map((key) => (
         <label className="checklist-item" key={key}>
           <input
             type="checkbox"

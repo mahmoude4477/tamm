@@ -1,5 +1,6 @@
 "use client";
 import { LocalePicker, useLocale } from "./locale-provider";
+import { ManagerPanel } from "./manager-panel";
 import { TaskCalendar } from "./task-calendar";
 import { ReportingPanel } from "./reporting-panel";
 import { AdvancedFilters } from "./advanced-filters";
@@ -69,6 +70,8 @@ import {
   StatusDot,
 } from "./workspace-shared";
 type Page =
+  | "tasks"
+  | "manager"
   | "overview"
   | "myTasks"
   | "projects"
@@ -79,8 +82,10 @@ type Page =
 const nav = [
   ["overview", LayoutDashboard],
   ["myTasks", CircleCheck],
+  ["tasks", List],
   ["projects", Layers],
   ["team", Users],
+  ["manager", Users],
   ["reports", ChartNoAxesCombined],
   ["activity", Activity],
 ] as const;
@@ -94,11 +99,20 @@ export function TammApp({
   const en = useMessages();
   const { today, formatDate } = useDates();
 
-  const { setTimezone } = useLocale();
+  const { setTimezone, locale, timezone } = useLocale();
   const [w, setW] = useState<Workspace | null>(null);
   useEffect(() => {
     setTimezone(w?.settings?.timezone ?? "UTC");
   }, [w?.settings?.timezone, setTimezone]);
+  const [myScope, setMyScope] = useState<
+    | "assigned"
+    | "today"
+    | "upcoming"
+    | "overdue"
+    | "created"
+    | "review"
+    | "completed"
+  >("assigned");
   const [page, setPage] = useState<Page>(initialPage);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [view, setView] = useState<"board" | "list" | "calendar">("board");
@@ -107,13 +121,23 @@ export function TammApp({
   const [priority, setPriority] = useState("");
   const [assignee, setAssignee] = useState("");
   const [advanced, setAdvanced] = useState<TaskFilters>({});
+  function applyFilters(v: TaskFilters) {
+    const { status, priority, assignee, project, search, ...remaining } = v;
+    setAdvanced(remaining);
+    setStatus(status ?? "");
+    setPriority(priority ?? "");
+    setAssignee(assignee ?? "");
+    setProjectId(project || null);
+    setSearch(search ?? "");
+  }
   useEffect(() => {
     try {
       const raw = new URLSearchParams(window.location.search).get("filters");
       if (raw) {
+        setPage("tasks");
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
-          setAdvanced(
+          applyFilters(
             Object.fromEntries(
               Object.entries(parsed).filter(
                 ([k, v]) =>
@@ -124,9 +148,14 @@ export function TammApp({
                     "tag",
                     "from",
                     "to",
+                    "project",
+                    "status",
+                    "priority",
+                    "assignee",
+                    "search",
                   ].includes(k) &&
                     typeof v === "string") ||
-                  (["overdue", "dependency"].includes(k) &&
+                  (["overdue", "dependency", "attachment"].includes(k) &&
                     typeof v === "boolean"),
               ),
             ),
@@ -170,6 +199,19 @@ export function TammApp({
         setLoaded(true);
       });
   }, [demo]);
+  useEffect(() => {
+    if (demo) return;
+    const reload = () => {
+      const current = workspaceRef.current;
+      if (current)
+        fetch(`/api/workspace?workspaceId=${encodeURIComponent(current.id)}`)
+          .then((r) => (r.ok ? r.json() : Promise.reject()))
+          .then((data) => setW(data.workspace))
+          .catch(() => setError(en.common.error));
+    };
+    window.addEventListener("tamm:refresh", reload);
+    return () => window.removeEventListener("tamm:refresh", reload);
+  }, [demo, en.common.error]);
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -238,9 +280,26 @@ export function TammApp({
       (!projectId || t.projectId === projectId) &&
       (!w || matchesFilters(w, t, advanced, today())) &&
       (page !== "myTasks" ||
-        [t.assigneeId, ...(t.assigneeIds ?? [])].includes(
-          w?.currentUserId ?? "",
-        )) &&
+        (myScope === "created"
+          ? t.reporterId === w?.currentUserId
+          : [t.assigneeId, ...(t.assigneeIds ?? [])].includes(
+              w?.currentUserId ?? "",
+            ) &&
+            (myScope === "today"
+              ? t.dueDate === today()
+              : myScope === "upcoming"
+                ? !!t.dueDate && t.dueDate > today() && isOpen(w!, t)
+                : myScope === "overdue"
+                  ? !!t.dueDate && t.dueDate < today() && isOpen(w!, t)
+                  : myScope === "review"
+                    ? w?.statuses.find((s) => s.id === t.statusId)?.category ===
+                      "review"
+                    : myScope === "completed"
+                      ? !!t.completedAt &&
+                        Date.parse(t.completedAt) >
+                          Date.now() - 30 * 86400000 &&
+                        isDone(w!, t)
+                      : true))) &&
       (!status || t.statusId === status) &&
       (!priority || t.priority === priority) &&
       (!assignee || t.assigneeId === assignee) &&
@@ -401,6 +460,14 @@ export function TammApp({
               </button>
             )}
             {e.text && <p className="muted">{e.text}</p>}
+            {e.previousStatusId &&
+              e.newStatusId &&
+              e.previousStatusId !== e.newStatusId && (
+                <p className="muted">
+                  {w.statuses.find((s) => s.id === e.previousStatusId)?.name} →{" "}
+                  {w.statuses.find((s) => s.id === e.newStatusId)?.name}
+                </p>
+              )}
             <time>{formatDate(e.createdAt)}</time>
           </div>
         </div>
@@ -434,8 +501,10 @@ export function TammApp({
           {nav
             .filter(
               ([key]) =>
-                key !== "reports" ||
-                can(person!.role, "report.view", person!.permissions),
+                (key !== "reports" ||
+                  can(person!.role, "report.view", person!.permissions)) &&
+                (key !== "manager" ||
+                  can(person!.role, "task.review", person!.permissions)),
             )
             .map(([key, Icon]) => (
               <button
@@ -512,7 +581,7 @@ export function TammApp({
             </a>
           </nav>
           <div className="profile">
-            <Avatar name={person!.name} />
+            <Avatar name={person!.name} image={person!.image} />
             <span>
               {person!.name}
               <small>{en.team.roles[person!.role]}</small>
@@ -552,7 +621,7 @@ export function TammApp({
           <strong>{project?.name ?? en.nav[page]}</strong>
           <div className="topbar-end">
             <span className="today">
-              {new Intl.DateTimeFormat("en", {
+              {new Intl.DateTimeFormat(locale, {
                 weekday: "short",
                 month: "short",
                 day: "numeric",
@@ -565,7 +634,7 @@ export function TammApp({
             >
               <Search size={18} />
             </button>
-            <Avatar name={person!.name} size="small" />
+            <Avatar name={person!.name} image={person!.image} size="small" />
           </div>
         </header>
         <main className="main-content">
@@ -714,11 +783,17 @@ export function TammApp({
               )}
             </>
           )}
-          {(page === "myTasks" || projectId) && (
+          {(page === "tasks" || page === "myTasks" || projectId) && (
             <>
               <Heading
-                title={project?.name ?? en.tasks.myTitle}
-                subtitle={project?.description ?? en.tasks.mySubtitle}
+                title={
+                  project?.name ??
+                  (page === "tasks" ? en.tasks.title : en.tasks.myTitle)
+                }
+                subtitle={
+                  project?.description ??
+                  (page === "tasks" ? en.tasks.subtitle : en.tasks.mySubtitle)
+                }
               >
                 {can(person!.role, "task.create", person!.permissions) && (
                   <Button onClick={() => setCreateTask(true)}>
@@ -727,6 +802,21 @@ export function TammApp({
                   </Button>
                 )}
               </Heading>
+              {page === "myTasks" && (
+                <div className="scope-tabs">
+                  {Object.entries(en.myTasks).map(([id, label]) => (
+                    <Button
+                      key={id}
+                      variant={myScope === id ? "default" : "ghost"}
+                      size="sm"
+                      aria-pressed={myScope === id}
+                      onClick={() => setMyScope(id as typeof myScope)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              )}
               <div className="view-toolbar">
                 <div className="view-tabs">
                   {(
@@ -776,8 +866,15 @@ export function TammApp({
               </div>
               <AdvancedFilters
                 w={w}
-                value={advanced}
-                onChange={setAdvanced}
+                value={{
+                  ...advanced,
+                  status,
+                  priority,
+                  assignee,
+                  project: projectId ?? "",
+                  search,
+                }}
+                onChange={applyFilters}
                 demo={demo}
               />
               {filter && (
@@ -828,6 +925,7 @@ export function TammApp({
                     variant="ghost"
                     size="sm"
                     onClick={() => {
+                      setAdvanced({});
                       setStatus("");
                       setPriority("");
                       setAssignee("");
@@ -950,6 +1048,16 @@ export function TammApp({
               {view === "list" && (
                 <TaskTable
                   w={w}
+                  demo={demo}
+                  query={{
+                    ...advanced,
+                    project: projectId ?? undefined,
+                    status,
+                    priority,
+                    assignee,
+                    search,
+                    scope: page === "myTasks" ? myScope : undefined,
+                  }}
                   tasks={filtered}
                   onTask={setTaskId}
                   send={send}
@@ -968,6 +1076,9 @@ export function TammApp({
                 <Empty title={en.common.noResults} note={en.tasks.emptyNote} />
               )}
             </>
+          )}
+          {page === "manager" && (
+            <ManagerPanel w={w} open={setTaskId} demo={demo} />
           )}
           {page === "team" && <TeamPanel w={w} send={send} busy={busy} />}
           {page === "reports" && (
@@ -1145,8 +1256,7 @@ export function TammApp({
                   key={t.id}
                   onClick={() => {
                     setCommandOpen(false);
-                    navigate("myTasks");
-                    setPage("projects");
+                    navigate("tasks");
                     setAdvanced({ team: t.id });
                   }}
                 >

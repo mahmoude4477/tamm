@@ -93,12 +93,13 @@ export function applyExtended(
     if (id && !w.members.some((m) => m.id === id && m.active !== false))
       fail("member");
   };
-  const event = (action: string, text = "") =>
+  const event = (action: string, text = "", projectId?: string) =>
     w.events.push({
       id: uuid(),
       actorId: actor.id,
       taskId: null,
       action,
+      projectId,
       text,
       createdAt: now,
     });
@@ -133,7 +134,7 @@ export function applyExtended(
       )
         fail("member");
       Object.assign(p, c.data);
-      event("project.updated", p.name);
+      event("project.updated", p.name, p.id);
       break;
     }
     case "project.delete": {
@@ -141,7 +142,7 @@ export function applyExtended(
       const p = w.projects.find((p) => p.id === c.id);
       if (!p) fail("notFound");
       p.deletedAt = c.restore ? null : now;
-      event("project.updated", p.name);
+      event("project.updated", p.name, p.id);
       break;
     }
     case "workflow.update": {
@@ -200,6 +201,7 @@ export function applyExtended(
       requirePermission("user.manage");
       if (actor.role !== "owner" && c.permissions.some((p) => !allowed(p)))
         fail("forbidden");
+      if (c.id && !w.customRoles?.some((r) => r.id === c.id)) fail("notFound");
       const role = {
         id: c.id ?? uuid(),
         name: c.name,
@@ -234,6 +236,7 @@ export function applyExtended(
     }
     case "comment.edit":
     case "comment.delete": {
+      requirePermission("comment.create");
       const e = w.events.find(
         (e) => e.id === c.id && e.action === "task.commented",
       );
@@ -253,7 +256,7 @@ export function applyExtended(
     case "task.follow": {
       const t = w.tasks.find((t) => t.id === c.id);
       if (!t || t.deletedAt) fail("notFound");
-      if (actor.role === "viewer") fail("forbidden");
+      if (!allowed("comment.create")) fail("forbidden");
       t.watcherIds = c.following
         ? [...new Set([...(t.watcherIds ?? []), actor.id])]
         : (t.watcherIds ?? []).filter((id) => id !== actor.id);

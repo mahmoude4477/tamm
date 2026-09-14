@@ -13,6 +13,7 @@ import { passkey } from "@better-auth/passkey";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
+import { can } from "./permissions";
 import { sendMail } from "./email";
 import en from "@/messages/en.json";
 export const auth = betterAuth({
@@ -59,9 +60,7 @@ export const auth = betterAuth({
         if (u?.banned)
           throw new APIError("FORBIDDEN", { message: en.errors.suspended });
       }
-      const session = ctx.path.startsWith("/organization/")
-        ? await getSessionFromCtx(ctx)
-        : ctx.context.session;
+      const session = await getSessionFromCtx(ctx);
       if (session) {
         const [u] = await db
           .select({ banned: schema.user.banned })
@@ -69,11 +68,27 @@ export const auth = betterAuth({
           .where(eq(schema.user.id, session.user.id));
         if (u?.banned)
           throw new APIError("FORBIDDEN", { message: en.errors.suspended });
-        const organizationId =
+        let organizationId =
           typeof ctx.body?.organizationId === "string"
             ? ctx.body.organizationId
-            : (session.session as { activeOrganizationId?: string })
-                .activeOrganizationId;
+            : typeof ctx.query?.organizationId === "string"
+              ? ctx.query.organizationId
+              : (session.session as { activeOrganizationId?: string })
+                  .activeOrganizationId;
+        if (typeof ctx.body?.invitationId === "string") {
+          const [invite] = await db
+            .select()
+            .from(schema.invitation)
+            .where(eq(schema.invitation.id, ctx.body.invitationId));
+          if (invite) organizationId = invite.organizationId;
+        }
+        if (typeof ctx.body?.teamId === "string") {
+          const [team] = await db
+            .select()
+            .from(schema.teams)
+            .where(eq(schema.teams.id, ctx.body.teamId));
+          if (team) organizationId = team.workspaceId;
+        }
         if (organizationId && ctx.path.startsWith("/organization/")) {
           const [m] = await db
             .select()
@@ -84,10 +99,70 @@ export const auth = betterAuth({
                 eq(schema.memberships.userId, session.user.id),
               ),
             );
+          if (
+            m?.customRoleId &&
+            [
+              "/organization/invite-member",
+              "/organization/cancel-invitation",
+              "/organization/create-team",
+              "/organization/update-team",
+              "/organization/add-team-member",
+              "/organization/remove-team-member",
+            ].includes(ctx.path)
+          ) {
+            const [role] = await db
+              .select()
+              .from(schema.customRoles)
+              .where(
+                and(
+                  eq(schema.customRoles.id, m.customRoleId),
+                  eq(schema.customRoles.workspaceId, m.workspaceId),
+                ),
+              );
+            if (!can(m.role, "user.manage", role?.permissions))
+              throw new APIError("FORBIDDEN", { message: en.errors.forbidden });
+          }
           if (m?.active === false)
             throw new APIError("FORBIDDEN", { message: en.errors.suspended });
         }
       }
+    }),
+    after: createAuthMiddleware(async (ctx) => {
+      const actions: Record<string, string> = {
+        "/organization/invite-member": "invitation.created",
+        "/organization/accept-invitation": "invitation.accepted",
+        "/organization/cancel-invitation": "invitation.cancelled",
+      };
+      const action = actions[ctx.path];
+      if (
+        !action ||
+        !ctx.context.session ||
+        ctx.context.returned instanceof APIError
+      )
+        return;
+      const result = ctx.context.returned as { id?: string };
+      const id =
+        typeof ctx.body?.invitationId === "string"
+          ? ctx.body.invitationId
+          : result?.id;
+      if (!id) return;
+      const [invitation] = await db
+        .select()
+        .from(schema.invitation)
+        .where(eq(schema.invitation.id, id));
+      if (!invitation) return;
+      await db.insert(schema.auditLogs).values({
+        id: crypto.randomUUID(),
+        workspaceId: invitation.organizationId,
+        actorId: ctx.context.session.user.id,
+        action,
+        entityId: id,
+        detail: {
+          email: invitation.email,
+          role: invitation.role,
+          status: invitation.status,
+        },
+      });
     }),
   },
   databaseHooks: {
@@ -130,6 +205,11 @@ export const auth = betterAuth({
           `${data.inviter.user.name} ${en.mail.inviteBody} ${data.organization.name}.\n\n${process.env.BETTER_AUTH_URL}/invite?id=${encodeURIComponent(data.id)}`,
         ),
       organizationHooks: {
+        beforeUpdateMemberRole: async () => {
+          throw new APIError("BAD_REQUEST", {
+            message: en.errors.useAdministration,
+          });
+        },
         beforeRemoveMember: async () => {
           throw new APIError("BAD_REQUEST", {
             message: en.errors.deactivateInstead,

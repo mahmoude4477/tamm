@@ -49,6 +49,13 @@ jobs:
             sleep 1
           done
           node scripts/integration.mjs
+          node scripts/auth-integration.mjs
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser workflows
+        run: npm run test:e2e
+        env:
+          RUN_AUTH_E2E: "true"
       - name: Server log on failure
         if: failure()
         run: cat /tmp/tamm-server.log 2>/dev/null || true

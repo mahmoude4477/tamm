@@ -58,7 +58,9 @@
     "demo": "Demo workspace",
     "demoNote": "Explore with fictional data. Changes last until this page is refreshed.",
     "live": "Your workspace",
-    "switch": "Open your workspace"
+    "switch": "Open your workspace",
+    "manager": "Manager dashboard",
+    "tasks": "All tasks"
   },
   "overview": {
     "eyebrow": "YOUR WORK, IN FOCUS",
@@ -293,7 +295,8 @@
     "transferApproval": "This transfer requires manager approval.",
     "emailNotConfigured": "Email delivery is not configured for this installation.",
     "file": "This file type or size is not allowed.",
-    "limit": "Too many requests. Please try again shortly."
+    "limit": "Too many requests. Please try again shortly.",
+    "useAdministration": "Use workspace administration to change roles."
   },
   "demo": {
     "workspace": "Studio workspace",
@@ -415,7 +418,7 @@
     "mention": "You were mentioned",
     "review": "Review update",
     "status": "Task updated",
-    "due": "Due today",
+    "due": "Due soon",
     "overdue": "Overdue task",
     "follow": "Follow task",
     "unfollow": "Unfollow task",
@@ -495,7 +498,9 @@
     "project.manage": "Manage projects",
     "report.view": "View reports",
     "user.manage": "Manage members and roles",
-    "workflow.manage": "Manage workflows and settings"
+    "workflow.manage": "Manage workflows and settings",
+    "comment.create": "Write comments and follow tasks",
+    "file.upload": "Upload files"
   },
   "views": {
     "columns": "Columns",
@@ -546,6 +551,26 @@
     "reject": "Reject",
     "requested": "Transfer requested.",
     "calendarDates": "Task and project dates",
-    "reportNote": "Completed tasks use their completion month. Workload is current. A task with multiple assignees appears in each assignee’s row."
+    "reportNote": "Completed tasks use their completion month. Workload is current. A task with multiple assignees appears in each assignee’s row.",
+    "attachment": "Has attachment"
+  },
+  "manager": {
+    "title": "Team overview",
+    "subtitle": "Workload, deadlines, and decisions that need you.",
+    "approvals": "Approval queue",
+    "dueSoon": "Due this week",
+    "unassigned": "People without active tasks",
+    "blocked": "Blocked tasks",
+    "open": "Open tasks",
+    "empty": "No tasks are waiting for approval."
+  },
+  "myTasks": {
+    "assigned": "Assigned to me",
+    "today": "Today",
+    "upcoming": "Upcoming",
+    "overdue": "Overdue",
+    "created": "Created by me",
+    "review": "Waiting for review",
+    "completed": "Completed recently"
   }
 }

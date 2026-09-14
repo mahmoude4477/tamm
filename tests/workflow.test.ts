@@ -235,3 +235,49 @@ test("secondary assignees can edit their assigned task", () => {
   });
   assert.equal(n.tasks[0].title, "Shared work");
 });
+
+test("custom role updates cannot target a foreign role id", () => {
+  const w = createDemo();
+  assert.throws(
+    () =>
+      applyCommand(w, {
+        type: "role.save",
+        id: "foreign-role",
+        name: "Changed",
+        permissions: [],
+      }),
+    /notFound/,
+  );
+});
+test("a secondary assignee must be allowed to see the project", () => {
+  const w = createDemo();
+  w.projects[0].visibility = "private";
+  w.projects[0].memberIds = ["person-0"];
+  assert.throws(
+    () =>
+      applyCommand(w, {
+        type: "task.update",
+        id: "task-0",
+        version: 0,
+        data: { assigneeIds: ["person-3"] },
+      }),
+    /member/,
+  );
+});
+test("reopening a blocker cannot silently invalidate a completed task", () => {
+  const w = createDemo();
+  w.tasks[0].statusId = "status-4";
+  w.tasks[0].checklist = [];
+  w.tasks[1].statusId = "status-4";
+  w.tasks[1].dependencyIds = ["task-0"];
+  assert.throws(
+    () =>
+      applyCommand(w, {
+        type: "task.update",
+        id: "task-0",
+        version: 0,
+        data: { statusId: "status-0" },
+      }),
+    /dependency/,
+  );
+});

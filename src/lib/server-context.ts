@@ -1,4 +1,5 @@
 import "server-only";
+import { ZodError } from "zod";
 import { and, eq } from "drizzle-orm";
 import { auth } from "./auth";
 import { db } from "@/db";
@@ -89,7 +90,13 @@ export function apiError(error: unknown) {
           "domain" in error &&
           "code" in error
         ? String(error.code)
-        : "invalid";
+        : error instanceof ZodError || error instanceof SyntaxError
+          ? "invalid"
+          : "unavailable";
+  if (code === "unavailable")
+    console.error("Workspace request failed", {
+      type: error instanceof Error ? error.name : "unknown",
+    });
   return Response.json(
     { error: code },
     {
@@ -100,7 +107,10 @@ export function apiError(error: unknown) {
             ? 409
             : code === "invalid"
               ? 400
-              : 403,
+              : code === "unavailable"
+                ? 500
+                : 403,
+      headers: { "Cache-Control": "no-store" },
     },
   );
 }

@@ -7,7 +7,7 @@ import { monthlyReport, isOpen, activeTasks } from "@/lib/reports";
 import { AdvancedFilters } from "./advanced-filters";
 import { Heading, download } from "./workspace-shared";
 import { Button } from "./ui/button";
-import { useMessages, useDates } from "@/components/locale-provider";
+import { useMessages, useDates, useLocale } from "@/components/locale-provider";
 function saveBlob(data: Blob, name: string) {
   const url = URL.createObjectURL(data),
     a = document.createElement("a");
@@ -28,6 +28,7 @@ export function ReportingPanel({
   demo: boolean;
 }) {
   const en = useMessages();
+  const { locale } = useLocale();
   const { today, formatDate } = useDates();
 
   const [filters, setFilters] = useState<TaskFilters>({}),
@@ -125,6 +126,17 @@ export function ReportingPanel({
         const { jsPDF } = await import("jspdf");
         const { default: autoTable } = await import("jspdf-autotable");
         const doc = new jsPDF({ orientation: "landscape" });
+        const fontResponse = await fetch("/fonts/TammSans.ttf");
+        if (!fontResponse.ok) throw Error();
+        const font = new Uint8Array(await fontResponse.arrayBuffer());
+        let binary = "";
+        for (let i = 0; i < font.length; i += 32768)
+          binary += String.fromCharCode(...font.subarray(i, i + 32768));
+        doc.addFileToVFS("TammSans.ttf", btoa(binary));
+        doc.addFont("TammSans.ttf", "TammSans", "normal");
+        doc.setFont("TammSans");
+        if (locale === "ar") doc.setR2L(true);
+
         doc.setFontSize(18);
         doc.text(`${en.brand.name} — ${en.reports.title}`, 14, 18);
         doc.setFontSize(11);
@@ -133,8 +145,8 @@ export function ReportingPanel({
           head: [headers],
           body: rows,
           startY: 34,
-          styles: { fontSize: 9 },
-          headStyles: { fillColor: [49, 86, 67] },
+          styles: { fontSize: 9, font: "TammSans", fontStyle: "normal" },
+          headStyles: { fillColor: [49, 86, 67], fontStyle: "normal" },
         });
         doc.save(`tamm-report-${month}.pdf`);
       }
@@ -227,7 +239,7 @@ export function ReportingPanel({
           {en.views.pdf}
         </Button>
       </div>
-      <div className="stats-grid">
+      <div className="metrics">
         {[
           [
             en.reports.completedColumn,
@@ -235,6 +247,21 @@ export function ReportingPanel({
             previous.completed.length,
           ],
           [en.reports.assigned, report.created, previous.created],
+          [en.views.reopened, report.reopened, previous.reopened],
+          [
+            en.reports.cycle,
+            report.cycleDays === null
+              ? "—"
+              : report.cycleDays.toLocaleString(locale, {
+                  maximumFractionDigits: 1,
+                }),
+            previous.cycleDays === null
+              ? "—"
+              : previous.cycleDays.toLocaleString(locale, {
+                  maximumFractionDigits: 1,
+                }),
+          ],
+
           [
             en.reports.onTimeColumn,
             report.onTime === null ? "—" : `${report.onTime}%`,
@@ -246,7 +273,7 @@ export function ReportingPanel({
             null,
           ],
         ].map(([name, current, before]) => (
-          <div className="stat-card" key={String(name)}>
+          <div className="metric" key={String(name)}>
             <span>{name}</span>
             <strong>{current}</strong>
             {before !== null && (
@@ -278,7 +305,9 @@ export function ReportingPanel({
             </tbody>
           </table>
         </div>
-        <p className="report-definition">{en.reports.definition}</p>
+        <p className="report-definition">
+          {en.reports.definition} {en.views.reportNote}
+        </p>
       </section>
       <p role="alert">{error}</p>
     </>

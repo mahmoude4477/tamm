@@ -1,6 +1,12 @@
 import type { Task, Workspace } from "./types";
 import { isOpen } from "./reports";
 export type TaskFilters = {
+  attachment?: boolean;
+  project?: string;
+  status?: string;
+  priority?: string;
+  assignee?: string;
+  search?: string;
   team?: string;
   department?: string;
   creator?: string;
@@ -23,6 +29,16 @@ export function matchesFilters(
     people.flatMap((m) => [m.teamId, ...(m.teamIds ?? [])]).filter(Boolean),
   );
   return (
+    (!f.attachment || w.attachmentTaskIds?.includes(t.id)) &&
+    (!f.project || t.projectId === f.project) &&
+    (!f.status || t.statusId === f.status) &&
+    (!f.priority || t.priority === f.priority) &&
+    (!f.assignee ||
+      [t.assigneeId, ...(t.assigneeIds ?? [])].includes(f.assignee)) &&
+    (!f.search ||
+      `${t.title} ${t.description} ${t.tags.join(" ")}`
+        .toLowerCase()
+        .includes(f.search.toLowerCase())) &&
     (!f.team || teams.has(f.team)) &&
     (!f.department ||
       w.teams.some(

@@ -11,7 +11,7 @@ import { authClient } from "@/lib/auth-client";
 import { can } from "@/lib/permissions";
 import { activeTasks, isOpen, monthlyReport } from "@/lib/reports";
 import type { Role, Task, Workspace } from "@/lib/types";
-import { useMessages, useDates } from "@/components/locale-provider";
+import { useMessages, useDates, useLocale } from "@/components/locale-provider";
 import {
   ChevronLeft,
   ChevronRight,
@@ -35,6 +35,8 @@ export function Calendar({
   setMonth: (m: string) => void;
   open: (id: string) => void;
 }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
   const { today, formatDate } = useDates();
 
@@ -50,7 +52,7 @@ export function Calendar({
     <div className="calendar">
       <div className="calendar-heading">
         <h2>
-          {new Intl.DateTimeFormat("en", {
+          {new Intl.DateTimeFormat(locale, {
             month: "long",
             year: "numeric",
             timeZone: "UTC",
@@ -78,7 +80,7 @@ export function Calendar({
       <div className="calendar-weekdays">
         {days.slice(0, 7).map((d) => (
           <span key={d.toISOString()}>
-            {new Intl.DateTimeFormat("en", {
+            {new Intl.DateTimeFormat(locale, {
               weekday: "short",
               timeZone: "UTC",
             }).format(d)}
@@ -119,6 +121,8 @@ export function TeamPanel({
   send: Send;
   busy: boolean;
 }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
   const { today, formatDate } = useDates();
 
@@ -155,13 +159,15 @@ export function TeamPanel({
           <tbody>
             {w.members.map((m) => {
               const tasks = activeTasks(w).filter(
-                (t) => t.assigneeId === m.id && isOpen(w, t),
+                (t) =>
+                  [t.assigneeId, ...(t.assigneeIds ?? [])].includes(m.id) &&
+                  isOpen(w, t),
               );
               return (
                 <tr key={m.id}>
                   <td>
                     <div className="person-cell">
-                      <Avatar name={m.name} />
+                      <Avatar name={m.name} image={m.image} />
                       <span>
                         {m.name}
                         <small>{m.email}</small>
@@ -364,6 +370,8 @@ export function ReportPanel({
   month: string;
   setMonth: (value: string) => void;
 }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
   const { today, formatDate } = useDates();
 
@@ -373,8 +381,11 @@ export function ReportPanel({
     return [
       m.name,
       completed.length,
-      activeTasks(w).filter((t) => t.assigneeId === m.id && isOpen(w, t))
-        .length,
+      activeTasks(w).filter(
+        (t) =>
+          [t.assigneeId, ...(t.assigneeIds ?? [])].includes(m.id) &&
+          isOpen(w, t),
+      ).length,
       activeTasks(w).filter(
         (t) =>
           t.assigneeId === m.id &&
@@ -476,6 +487,8 @@ export function SettingsPanel({
   busy: boolean;
   demo: boolean;
 }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
   const { today, formatDate } = useDates();
 
@@ -596,6 +609,8 @@ export function SettingsPanel({
   );
 }
 function AccountSettings() {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
   const { today, formatDate } = useDates();
 

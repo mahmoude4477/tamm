@@ -67,6 +67,9 @@ export type Task = {
   actualHours?: number;
 };
 export type Event = {
+  projectId?: string | null;
+  previousStatusId?: string | null;
+  newStatusId?: string | null;
   id: string;
   taskId: string | null;
   actorId: string;
@@ -81,6 +84,7 @@ export type Event = {
   newAssigneeId?: string | null;
 };
 export type Workspace = {
+  attachmentTaskIds?: string[];
   id: string;
   name: string;
   currentUserId: string;

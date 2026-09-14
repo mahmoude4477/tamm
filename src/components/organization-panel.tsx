@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "./ui/button";
 import type { Workspace } from "@/lib/types";
-import { useMessages, useDates } from "@/components/locale-provider";
+import { useMessages, useDates, useLocale } from "@/components/locale-provider";
 export function WorkspaceSwitcher({ w }: { w: Workspace }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
 
   const [items, setItems] = useState<{ id: string; name: string }[]>([]),
@@ -76,6 +78,8 @@ export function WorkspaceSwitcher({ w }: { w: Workspace }) {
   );
 }
 export function InvitationPanel({ w }: { w: Workspace }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
 
   const [items, setItems] = useState<
@@ -156,7 +160,9 @@ export function InvitationPanel({ w }: { w: Workspace }) {
               {i.email}
               <small>
                 {en.account.expiry}{" "}
-                {new Date(i.expiresAt).toLocaleDateString("en")}
+                {new Date(i.expiresAt).toLocaleDateString(locale, {
+                  timeZone: timezone,
+                })}
               </small>
             </span>
             <Button

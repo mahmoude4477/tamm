@@ -11,7 +11,7 @@ import {
 import type { Workspace, Task, Attachment, Notification } from "@/lib/types";
 import type { Send } from "./task-editor";
 import { can } from "@/lib/permissions";
-import { useMessages, useDates } from "@/components/locale-provider";
+import { useMessages, useDates, useLocale } from "@/components/locale-provider";
 export function FilePanel({
   w,
   taskId,
@@ -23,6 +23,8 @@ export function FilePanel({
   projectId?: string;
   demo?: boolean;
 }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
 
   const [files, setFiles] = useState<Attachment[]>([]),
@@ -50,7 +52,7 @@ export function FilePanel({
       ) : (
         <>
           <p className="muted">{en.collaboration.fileHint}</p>
-          {actor.role !== "viewer" && (
+          {can(actor.role, "file.upload", actor.permissions) && (
             <form
               className="editor-form"
               onSubmit={async (e) => {
@@ -65,6 +67,7 @@ export function FilePanel({
                   const r = await fetch(url, { method: "POST", body: f });
                   if (!r.ok) throw Error();
                   await refresh();
+                  window.dispatchEvent(new Event("tamm:refresh"));
                   form.reset();
                 } catch {
                   setError(en.errors.file);
@@ -121,6 +124,7 @@ export function FilePanel({
                       );
                       if (!r.ok) throw Error();
                       await refresh();
+                      window.dispatchEvent(new Event("tamm:refresh"));
                     } catch {
                       setError(en.common.error);
                     } finally {
@@ -150,6 +154,8 @@ export function CommentPanel({
   send: Send;
   busy: boolean;
 }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
 
   const [reply, setReply] = useState<string | null>(null),
@@ -161,7 +167,7 @@ export function CommentPanel({
   return (
     <section className="detail-section">
       <h3>{en.tasks.comments}</h3>
-      {actor.role !== "viewer" && (
+      {can(actor.role, "comment.create", actor.permissions) && (
         <Button
           variant="outline"
           size="sm"
@@ -182,7 +188,11 @@ export function CommentPanel({
       {comments.map((c) => (
         <article className="comment" key={c.id}>
           <strong>{w.members.find((m) => m.id === c.actorId)?.name}</strong>{" "}
-          <time>{new Date(c.createdAt).toLocaleString("en")}</time>
+          <time>
+            {new Date(c.createdAt).toLocaleString(locale, {
+              timeZone: timezone,
+            })}
+          </time>
           {c.parentEventId && (
             <blockquote>
               {comments.find((p) => p.id === c.parentEventId)?.deletedAt
@@ -229,39 +239,44 @@ export function CommentPanel({
             </div>
           )}
           {c.editedAt && <small>{en.collaboration.edited}</small>}
-          {!c.deletedAt && actor.role !== "viewer" && (
-            <div className="detail-actions">
-              <Button size="sm" variant="ghost" onClick={() => setReply(c.id)}>
-                {en.collaboration.reply}
-              </Button>
-              {(c.actorId === actor.id ||
-                can(actor.role, "user.manage", actor.permissions)) && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setEdit(c.id)}
-                  >
-                    {en.collaboration.edit}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => {
-                      if (window.confirm(en.common.confirmDelete))
-                        send({ type: "comment.delete", id: c.id });
-                    }}
-                  >
-                    {en.collaboration.delete}
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
+          {!c.deletedAt &&
+            can(actor.role, "comment.create", actor.permissions) && (
+              <div className="detail-actions">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setReply(c.id)}
+                >
+                  {en.collaboration.reply}
+                </Button>
+                {(c.actorId === actor.id ||
+                  can(actor.role, "user.manage", actor.permissions)) && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEdit(c.id)}
+                    >
+                      {en.collaboration.edit}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => {
+                        if (window.confirm(en.common.confirmDelete))
+                          send({ type: "comment.delete", id: c.id });
+                      }}
+                    >
+                      {en.collaboration.delete}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
         </article>
       ))}
-      {actor.role !== "viewer" && (
+      {can(actor.role, "comment.create", actor.permissions) && (
         <form
           className="editor-form"
           onSubmit={async (e) => {
@@ -344,6 +359,8 @@ export function Inbox({
   w: Workspace;
   onTask: (id: string) => void;
 }) {
+  const { locale, timezone } = useLocale();
+
   const en = useMessages();
 
   const [open, setOpen] = useState(false),

@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -22,12 +22,16 @@ export function TaskTable({
   onTask,
   send,
   busy,
+  demo = true,
+  query = {},
 }: {
   w: Workspace;
   tasks: Task[];
   onTask: (id: string) => void;
   send: Send;
   busy: boolean;
+  demo?: boolean;
+  query?: Record<string, string | boolean | undefined>;
 }) {
   const en = useMessages();
   const { today, formatDate } = useDates();
@@ -36,6 +40,40 @@ export function TaskTable({
     [visibility, setVisibility] = useState<VisibilityState>({}),
     [selection, setSelection] = useState({}),
     [field, setField] = useState("statusId");
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 });
+  const [serverData, setServerData] = useState<{
+    items: Task[];
+    total: number;
+  }>({ items: [], total: 0 });
+  const [loadError, setLoadError] = useState("");
+  const queryKey = JSON.stringify(query);
+  useEffect(() => setPagination((p) => ({ ...p, pageIndex: 0 })), [queryKey]);
+  useEffect(() => {
+    if (demo) return;
+    const abort = new AbortController();
+    const params = new URLSearchParams({
+      workspaceId: w.id,
+      page: String(pagination.pageIndex),
+      size: String(pagination.pageSize),
+      sort: sorting[0]?.id ?? "title",
+      desc: String(sorting[0]?.desc ?? false),
+      ...Object.fromEntries(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== "")
+          .map(([k, v]) => [k, String(v)]),
+      ),
+    });
+    setLoadError("");
+    fetch(`/api/tasks?${params}`, { signal: abort.signal })
+      .then(async (r) => {
+        if (!r.ok) throw Error();
+        setServerData(await r.json());
+      })
+      .catch((e) => {
+        if (e.name !== "AbortError") setLoadError(en.common.error);
+      });
+    return () => abort.abort();
+  }, [demo, w.id, w.tasks, queryKey, pagination, sorting, en.common.error]);
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
   const columns = useMemo<ColumnDef<Task>[]>(
     () => [
@@ -109,9 +147,18 @@ export function TaskTable({
     [w, onTask],
   );
   const table = useReactTable({
-    data: tasks,
+    data: demo ? tasks : serverData.items,
     columns,
-    state: { sorting, columnVisibility: visibility, rowSelection: selection },
+    state: {
+      pagination,
+      sorting,
+      columnVisibility: visibility,
+      rowSelection: selection,
+    },
+    onPaginationChange: setPagination,
+    manualPagination: !demo,
+    manualSorting: !demo,
+    rowCount: demo ? undefined : serverData.total,
     onSortingChange: setSorting,
     onColumnVisibilityChange: setVisibility,
     onRowSelectionChange: setSelection,
@@ -124,6 +171,7 @@ export function TaskTable({
   });
   return (
     <>
+      <p role="alert">{loadError}</p>
       <details className="column-options">
         <summary>{en.views.columns}</summary>
         {table
@@ -240,17 +288,18 @@ export function TaskTable({
               rows = table.getSelectedRowModel().rows;
             const data: Record<string, unknown> = {};
             if (field === "tag") {
-              /* Tags differ per task; retain their existing values through individual commands. */ for (const row of rows) {
-                if (
-                  !(await send({
-                    type: "task.update",
-                    id: row.id,
-                    version: row.original.version,
-                    data: { tags: [...new Set([...row.original.tags, value])] },
-                  }))
-                )
-                  return;
-              }
+              if (
+                !(await send({
+                  type: "task.bulk",
+                  items: rows.map((r) => ({
+                    id: r.id,
+                    version: r.original.version,
+                  })),
+                  data: {},
+                  addTag: value,
+                }))
+              )
+                return;
             } else {
               if (field !== "archived")
                 data[field] =
