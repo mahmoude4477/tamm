@@ -9,7 +9,7 @@ Requires Node.js 22+ and PostgreSQL 16+.
 1. Run `npm install`.
 2. Copy `.env.example` to `.env.local` and provide a PostgreSQL connection string, deployment URL, and a random Better Auth secret of at least 32 characters.
 3. Export those environment variables in your shell for the database commands. Next.js loads `.env.local` for the app; Drizzle commands use the process environment.
-4. For a disposable development database, run `npm run db:push`.
+4. Run `npm run db:migrate` to apply the committed initial schema.
 5. Run `npm run dev` and open `http://localhost:3000`.
 6. `/` is an isolated in-memory demo using fictional data. `/login` and `/workspace` use Better Auth and PostgreSQL.
 
@@ -32,7 +32,7 @@ Create an account, then create a workspace. Administrators can add registered ac
 
 Next.js App Router, React, TypeScript, Tailwind CSS, shadcn-style Radix primitives, Better Auth, Drizzle, and PostgreSQL.
 
-This is an initial implementation, not the complete proposed V1. Workspace domain records currently live in a PostgreSQL JSONB aggregate. Memberships and audit events are relational. Workspace writes lock the aggregate row, validate commands on the server, and persist atomically with an audit entry. This is suitable for evaluating the initial workflow, but large workspaces require normalized domain tables, foreign keys, pagination, and narrower transactional boundaries before production rollout. The Better Auth Organization plugin is not yet integrated; membership is presently owned by the application.
+This is an initial implementation, not the complete proposed V1. Projects, tasks, statuses, departments, teams, membership, dependencies, and activity are relational PostgreSQL tables. Composite foreign keys enforce workspace boundaries for task and project relationships. Checklists and tags are JSON fields within a task. Workspace writes lock the workspace row, validate commands on the server, and persist changed rows atomically with an audit entry. Large workspaces still need pagination and narrower transaction boundaries. The Better Auth Organization plugin is not yet integrated; membership is presently owned by the application.
 
 The signed-in account opens its first workspace membership. A workspace switcher and invitation acceptance flow are still needed for multi-workspace operation. Demo data never enters a live database. Demo changes disappear on refresh.
 
@@ -42,7 +42,7 @@ Not yet implemented: email verification/recovery and email delivery, invitation 
 
 `npm run typecheck`, `npm test`, and `npm run build` are CI gates. Tests cover authorization, review/dependency rules, transfer history, stale versions, visibility, owner retention, and CSV formula escaping.
 
-Before production, generate reviewed SQL migrations with `npm run db:generate`, commit them, and apply with `npm run db:migrate`. Do not use `db:push` against a production database. Configure a least-privileged database role, HTTPS, backups, and your reverse proxy. The standalone build can run as a Node.js service behind IIS.
+For subsequent schema changes, generate reviewed SQL migrations with `npm run db:generate`, commit them, and apply with `npm run db:migrate`. Do not use `db:push` against a production database. Configure a least-privileged database role, HTTPS, backups, and your reverse proxy. The standalone build can run as a Node.js service behind IIS.
 
 ## Localization
 

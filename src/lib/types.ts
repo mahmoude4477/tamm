@@ -1,7 +1,70 @@
-export type Role = 'owner' | 'admin' | 'manager' | 'member' | 'viewer';
-export type Status = { id: string; name: string; category: 'open' | 'active' | 'review' | 'done' | 'cancelled'; color: string };
-export type Person = { id: string; name: string; email: string; role: Role; teamId: string | null };
-export type Project = { id: string; name: string; code: string; description: string; color: string; archived: boolean; visibility: 'organization' | 'private'; memberIds: string[] };
-export type Task = { id: string; number: number; title: string; description: string; projectId: string; statusId: string; priority: 'urgent' | 'high' | 'medium' | 'low'; assigneeId: string | null; reporterId: string; dueDate: string | null; startDate: string | null; completedAt: string | null; createdAt: string; updatedAt: string; estimatedHours: number; parentId: string | null; dependencyIds: string[]; tags: string[]; checklist: { id: string; text: string; done: boolean }[]; archived: boolean; deletedAt: string | null; version: number };
-export type Event = { id: string; taskId: string | null; actorId: string; action: string; text: string; createdAt: string; previousAssigneeId?: string | null; newAssigneeId?: string | null };
-export type Workspace = { id: string; name: string; currentUserId: string; members: Person[]; projects: Project[]; tasks: Task[]; statuses: Status[]; events: Event[]; teams: { id: string; name: string; departmentId: string | null }[]; departments: { id: string; name: string }[] };
+export type Role = "owner" | "admin" | "manager" | "member" | "viewer";
+export type Status = {
+  id: string;
+  name: string;
+  category: "open" | "active" | "review" | "done" | "cancelled";
+  color: string;
+};
+export type Person = {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  teamId: string | null;
+};
+export type Project = {
+  id: string;
+  name: string;
+  code: string;
+  description: string;
+  color: string;
+  archived: boolean;
+  visibility: "organization" | "private";
+  memberIds: string[];
+};
+export type Task = {
+  id: string;
+  number: number;
+  title: string;
+  description: string;
+  projectId: string;
+  statusId: string;
+  priority: "urgent" | "high" | "medium" | "low";
+  assigneeId: string | null;
+  reporterId: string;
+  dueDate: string | null;
+  startDate: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  estimatedHours: number;
+  parentId: string | null;
+  dependencyIds: string[];
+  tags: string[];
+  checklist: { id: string; text: string; done: boolean }[];
+  archived: boolean;
+  deletedAt: string | null;
+  version: number;
+};
+export type Event = {
+  id: string;
+  taskId: string | null;
+  actorId: string;
+  action: string;
+  text: string;
+  createdAt: string;
+  previousAssigneeId?: string | null;
+  newAssigneeId?: string | null;
+};
+export type Workspace = {
+  id: string;
+  name: string;
+  currentUserId: string;
+  members: Person[];
+  projects: Project[];
+  tasks: Task[];
+  statuses: Status[];
+  events: Event[];
+  teams: { id: string; name: string; departmentId: string | null }[];
+  departments: { id: string; name: string }[];
+};

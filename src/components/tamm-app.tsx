@@ -1,68 +1,2386 @@
-'use client';
-import { useEffect, useMemo, useState, useRef, type FormEvent } from 'react';
-import Link from 'next/link';
-import { Check, ArrowUpRight, Plus, Search, LayoutDashboard, CircleCheck, Layers, Users, ChartNoAxesCombined, Activity, Settings, PanelLeftClose, ChevronRight, ArrowRight, List, Columns3, CalendarDays, Flag, Circle, Clock, SlidersHorizontal, X, ChevronLeft, MoreHorizontal, MessageSquare, LogOut, Download, Github } from 'lucide-react';
-import en from '@/messages/en.json';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { createDemo } from '@/lib/demo';
-import { applyCommand, DomainError, type Command } from '@/lib/commands';
-import { can, canEditTask } from '@/lib/permissions';
-import { activeTasks, isDone, isOpen, monthlyReport, csvCell } from '@/lib/reports';
-import { authClient } from '@/lib/auth-client';
-import type { Workspace, Task, Role } from '@/lib/types';
+"use client";
+import { useEffect, useMemo, useState, useRef, type FormEvent } from "react";
+import Link from "next/link";
+import {
+  Check,
+  ArrowUpRight,
+  Plus,
+  Search,
+  LayoutDashboard,
+  CircleCheck,
+  Layers,
+  Users,
+  ChartNoAxesCombined,
+  Activity,
+  Settings,
+  PanelLeftClose,
+  ChevronRight,
+  ArrowRight,
+  List,
+  Columns3,
+  CalendarDays,
+  Flag,
+  Circle,
+  Clock,
+  SlidersHorizontal,
+  X,
+  ChevronLeft,
+  MoreHorizontal,
+  MessageSquare,
+  LogOut,
+  Download,
+  Github,
+} from "lucide-react";
+import en from "@/messages/en.json";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { createDemo } from "@/lib/demo";
+import { applyCommand, DomainError, type Command } from "@/lib/commands";
+import { can, canEditTask } from "@/lib/permissions";
+import {
+  activeTasks,
+  isDone,
+  isOpen,
+  monthlyReport,
+  csvCell,
+} from "@/lib/reports";
+import { authClient } from "@/lib/auth-client";
+import type { Workspace, Task, Role } from "@/lib/types";
 
-type Page='overview'|'myTasks'|'projects'|'team'|'reports'|'activity'|'settings';
-const nav=[['overview',LayoutDashboard],['myTasks',CircleCheck],['projects',Layers],['team',Users],['reports',ChartNoAxesCombined],['activity',Activity]] as const;
-const today=()=>new Date().toISOString().slice(0,10);
-function formatDate(value:string|null){return value?new Intl.DateTimeFormat('en',{month:'short',day:'numeric',timeZone:'UTC'}).format(new Date(value)):en.common.noDate;}
-function Avatar({name,size=''}:{name:string;size?:string}){return <span className={`avatar ${size}`} title={name}>{name.split(' ').map(w=>w[0]).slice(0,2).join('')}</span>;}
-function StatusDot({w,id}:{w:Workspace;id:string}){const s=w.statuses.find(s=>s.id===id);return <span className="status-dot" style={{'--status':s?.color} as React.CSSProperties}>{s?.category==='done'?<Check size={10}/>:null}</span>;}
-function ErrorNotice({error}:{error:string}){return error?<p role="alert" className="error">{error}</p>:null;}
-export function TammApp({demo=false}:{demo?:boolean}){
- const[w,setW]=useState<Workspace|null>(null);const[page,setPage]=useState<Page>('overview');const[projectId,setProjectId]=useState<string|null>(null);const[view,setView]=useState<'board'|'list'|'calendar'>('board');const[search,setSearch]=useState('');const[status,setStatus]=useState('');const[priority,setPriority]=useState('');const[assignee,setAssignee]=useState('');const[filter,setFilter]=useState(false);const[mobile,setMobile]=useState(false);const[taskId,setTaskId]=useState<string|null>(null);const[createTask,setCreateTask]=useState(false);const[createProject,setCreateProject]=useState(false);const[error,setError]=useState('');const[busy,setBusy]=useState(false);const[loaded,setLoaded]=useState(false);const[commandOpen,setCommandOpen]=useState(false);const[month,setMonth]=useState(today().slice(0,7));const[selected,setSelected]=useState<string[]>([]);const operation=useRef(false);
- useEffect(()=>{if(demo){setW(createDemo());setLoaded(true);return;}fetch('/api/workspace').then(async r=>{if(r.status===401){window.location.assign('/login');return;}if(!r.ok)throw Error();const data=await r.json();setW(data.workspace);setLoaded(true);}).catch(()=>{setError(en.common.error);setLoaded(true);});},[demo]);
- useEffect(()=>{const listener=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setCommandOpen(o=>!o);}};window.addEventListener('keydown',listener);return()=>window.removeEventListener('keydown',listener);},[]);
- async function send(command:Command|{type:'workspace.create';name:string}|{type:'member.add';email:string}){if(operation.current)return false;operation.current=true;setBusy(true);setError('');try{if(demo&&w){setW(applyCommand(w,command as Command));}else{const r=await fetch('/api/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(command)});const data=await r.json();if(!r.ok)throw new DomainError(data.error);setW(data.workspace);}return true;}catch(e){setError(e instanceof DomainError?(en.errors[e.code as keyof typeof en.errors]??en.common.error):en.common.error);return false;}finally{operation.current=false;setBusy(false);}}
- function navigate(next:Page,id:string|null=null){setPage(next);setProjectId(id);setSearch('');setSelected([]);setMobile(false);}
- const person=w?.members.find(m=>m.id===w.currentUserId);const tasks=useMemo(()=>w?activeTasks(w):[],[w]);
- const filtered=tasks.filter(t=>(!projectId||t.projectId===projectId)&&(page!=='myTasks'||t.assigneeId===w?.currentUserId)&&(!status||t.statusId===status)&&(!priority||t.priority===priority)&&(!assignee||t.assigneeId===assignee)&&(!search||`${t.title} ${t.description} ${t.tags.join(' ')} ${w?.projects.find(p=>p.id===t.projectId)?.name} ${t.number} ${w?.members.find(m=>m.id===t.assigneeId)?.name}`.toLowerCase().includes(search.toLowerCase())));
- const task=w?.tasks.find(t=>t.id===taskId);const project=w?.projects.find(p=>p.id===projectId);
- function exportTasks(){if(!w)return;const rows=[[en.tasks.titleLabel,en.tasks.project,en.tasks.status,en.tasks.priority,en.tasks.assignee,en.tasks.dueDate],...filtered.map(t=>[t.title,w.projects.find(p=>p.id===t.projectId)?.name,w.statuses.find(s=>s.id===t.statusId)?.name,en.priorities[t.priority],w.members.find(m=>m.id===t.assigneeId)?.name,t.dueDate])];download(rows,'tamm-tasks.csv');}
- if(!loaded)return <main className="loading" aria-live="polite">{en.common.loading}</main>;
- if(!w)return <main className="onboarding"><Link href="/" className="brand"><span className="brand-mark"><Check/></span>{en.brand.name}</Link><h1>{en.auth.workspaceTitle}</h1><p>{en.auth.workspaceSubtitle}</p><form onSubmit={async e=>{e.preventDefault();await send({type:'workspace.create',name:String(new FormData(e.currentTarget).get('name'))});}}><label>{en.auth.workspaceName}<input name="name" required maxLength={100}/></label><Button disabled={busy}>{en.auth.createWorkspace}<ArrowRight size={16}/></Button></form><ErrorNotice error={error}/></main>;
- const row=(t:Task)=><button className="task-row" key={t.id} onClick={()=>setTaskId(t.id)}><StatusDot w={w} id={t.statusId}/><span className="task-row-name">{t.title}<small>{w.projects.find(p=>p.id===t.projectId)?.name}</small></span><span className={`priority priority-${t.priority}`}><Flag size={12}/>{en.priorities[t.priority]}</span><time className={t.dueDate&&t.dueDate<today()&&isOpen(w,t)?'overdue':''}>{formatDate(t.dueDate)}</time>{t.assigneeId?<Avatar name={w.members.find(m=>m.id===t.assigneeId)?.name??''}/>:<span/>}<ChevronRight size={14}/></button>;
- const projectCard=(p:Workspace['projects'][number])=>{const all=tasks.filter(t=>t.projectId===p.id),done=all.filter(t=>isDone(w,t)).length;const progress=all.length?Math.round(done/all.length*100):0;return <button className="project-card" key={p.id} onClick={()=>navigate('projects',p.id)}><span className="project-monogram" style={{background:p.color}}><Layers size={20}/></span><ArrowUpRight className="card-arrow" size={17}/><h3>{p.name}</h3><p>{p.description}</p><div className="project-progress"><span>{all.length-done} {en.projects.openTasks}</span><b>{progress}%</b></div><div className="progress-track"><span style={{width:`${progress}%`,background:p.color}}/></div><div className="project-footer"><span className="avatar-stack">{p.memberIds.slice(0,3).map(id=><Avatar key={id} name={w.members.find(m=>m.id===id)?.name??''} size="small"/>)}</span><span>{p.code}</span></div></button>;};
- const activityList=(events=w.events)=>events.slice().reverse().slice(0,40).map(e=><div className="event" key={e.id}><Avatar name={w.members.find(m=>m.id===e.actorId)?.name??''} size="small"/><div><p><strong>{w.members.find(m=>m.id===e.actorId)?.name}</strong> {en.events[e.action as keyof typeof en.events]??e.action}</p>{e.taskId&&<button className="text-link" onClick={()=>setTaskId(e.taskId)}>{w.tasks.find(t=>t.id===e.taskId)?.title}</button>}{e.text&&<p className="muted">{e.text}</p>}<time>{formatDate(e.createdAt)}</time></div></div>);
- return <div className="app-shell"><aside className={`sidebar ${mobile?'is-open':''}`}><Link href="/" className="brand"><span className="brand-mark"><Check size={22}/></span>{en.brand.name}<span className="arabic">{en.brand.arabic}</span></Link><div className="workspace-label"><span className="workspace-initial">{w.name[0]}</span><span>{w.name}<small>{demo?en.nav.demo:en.nav.live}</small></span></div><button className="sidebar-search" onClick={()=>setCommandOpen(true)}><Search size={15}/>{en.common.searchShort}<kbd>⌘ K</kbd></button><span className="nav-caption">{en.nav.workspace}</span><nav>{nav.filter(([key])=>key!=='reports'||can(person!.role,'report.view')).map(([key,Icon])=><button key={key} className={page===key&&!projectId?'active':''} onClick={()=>navigate(key)}><Icon size={18}/>{en.nav[key]}{key==='myTasks'&&<span className="nav-count">{tasks.filter(t=>t.assigneeId===person?.id&&isOpen(w,t)).length}</span>}</button>)}</nav><div className="nav-caption project-caption">{en.nav.favorites}{can(person!.role,'project.manage')&&<button aria-label={en.common.newProject} onClick={()=>setCreateProject(true)}><Plus size={14}/></button>}</div><nav>{w.projects.filter(p=>!p.archived).map(p=><button className={projectId===p.id?'active':''} key={p.id} onClick={()=>navigate('projects',p.id)}><span className="project-dot" style={{background:p.color}}/>{p.name}</button>)}</nav><div className="sidebar-bottom">{demo&&<div className="demo-note"><span>{en.nav.demo}</span><p>{en.nav.demoNote}</p><Link href="/login">{en.nav.switch}<ArrowUpRight size={14}/></Link></div>}<nav><button className={page==='settings'?'active':''} onClick={()=>navigate('settings')}><Settings size={17}/>{en.nav.settings}</button><a href="https://github.com/mahmoude4477/tamm" target="_blank" rel="noreferrer"><Github size={17}/>{en.nav.help}</a></nav><div className="profile"><Avatar name={person!.name}/><span>{person!.name}<small>{en.team.roles[person!.role]}</small></span>{!demo&&<button aria-label={en.common.signOut} onClick={async()=>{await authClient.signOut();window.location.assign('/login');}}><LogOut size={16}/></button>}</div></div></aside>{mobile&&<button className="mobile-backdrop" aria-label={en.common.close} onClick={()=>setMobile(false)}/>}
- <div className="main-shell"><header className="topbar"><button className="mobile-menu" aria-label={en.common.menu} onClick={()=>setMobile(true)}><PanelLeftClose size={18}/></button><span>{en.nav.workspace}</span><ChevronRight size={13}/><strong>{project?.name??en.nav[page]}</strong><div className="topbar-end"><span className="today">{new Intl.DateTimeFormat('en',{weekday:'short',month:'short',day:'numeric'}).format(new Date())}</span><button className="top-search" aria-label={en.common.search} onClick={()=>setCommandOpen(true)}><Search size={18}/></button><Avatar name={person!.name} size="small"/></div></header><main className="main-content"><ErrorNotice error={error}/>
- {page==='overview'&&<><div className="page-heading overview-heading"><div><span className="eyebrow">{en.overview.eyebrow}</span><h1>{en.overview.title}</h1><p>{en.overview.subtitle}</p></div>{can(person!.role,'task.create')&&<Button onClick={()=>setCreateTask(true)}><Plus size={16}/>{en.common.newTask}</Button>}</div><div className="metrics">{[[en.overview.open,tasks.filter(t=>isOpen(w,t)).length,Circle],[en.overview.overdue,tasks.filter(t=>isOpen(w,t)&&t.dueDate&&t.dueDate<today()).length,Clock],[en.overview.review,tasks.filter(t=>w.statuses.find(s=>s.id===t.statusId)?.category==='review').length,MessageSquare],[en.overview.completed,tasks.filter(t=>isDone(w,t)).length,CircleCheck]].map(([label,count,Icon],i)=>{const I=Icon as typeof Circle;return <div className={`metric metric-${i}`} key={String(label)}><span>{String(label)}<I size={17}/></span><strong>{String(count)}<span className="metric-line"/></strong></div>;})}</div><section className="section"><div className="section-heading"><div><h2>{en.overview.attention}</h2><p>{en.overview.attentionNote}</p></div><Button variant="ghost" size="sm" onClick={()=>navigate('myTasks')}>{en.overview.viewAll}<ArrowRight size={14}/></Button></div><div className="task-rows">{tasks.filter(t=>isOpen(w,t)).sort((a,b)=>(a.dueDate??'9999').localeCompare(b.dueDate??'9999')).slice(0,5).map(row)}{!tasks.some(t=>isOpen(w,t))&&<Empty title={en.overview.allClear} note={en.overview.allClearNote}/>}</div></section><section className="section"><div className="section-heading"><h2>{en.overview.projects}</h2><Button variant="ghost" size="sm" onClick={()=>navigate('projects')}>{en.nav.projects}<ArrowRight size={14}/></Button></div><div className="project-grid">{w.projects.filter(p=>!p.archived).map(projectCard)}</div></section><section className="section"><div className="section-heading"><h2>{en.overview.activity}</h2></div><div className="activity-list">{activityList(w.events.slice(-3))}</div></section></>}
- {page==='projects'&&!projectId&&<><Heading title={en.projects.title} subtitle={en.projects.subtitle}><Button onClick={()=>setCreateProject(true)} disabled={!can(person!.role,'project.manage')}><Plus size={16}/>{en.common.newProject}</Button></Heading><div className="project-grid">{w.projects.filter(p=>!p.archived).map(projectCard)}</div>{!w.projects.length&&<Empty title={en.projects.noProjects} note={en.projects.createNote}/>}</>}
- {(page==='myTasks'||projectId)&&<><Heading title={project?.name??en.tasks.myTitle} subtitle={project?.description??en.tasks.mySubtitle}>{can(person!.role,'task.create')&&<Button onClick={()=>setCreateTask(true)}><Plus size={16}/>{en.common.newTask}</Button>}</Heading><div className="view-toolbar"><div className="view-tabs">{([['board',Columns3],['list',List],['calendar',CalendarDays]] as const).map(([name,Icon])=><button key={name} className={view===name?'active':''} onClick={()=>setView(name)}><Icon size={15}/>{en.tasks[name]}</button>)}</div><div className="toolbar-actions"><div className="inline-search"><Search size={15}/><input aria-label={en.common.search} placeholder={en.common.searchShort} value={search} onChange={e=>setSearch(e.target.value)}/></div><Button variant="outline" size="sm" onClick={()=>setFilter(!filter)}><SlidersHorizontal size={14}/>{en.tasks.filter}</Button><Button variant="ghost" size="icon" onClick={exportTasks} aria-label={en.common.export}><Download size={16}/></Button></div></div>{filter&&<div className="filters"><select aria-label={en.tasks.status} value={status} onChange={e=>setStatus(e.target.value)}><option value="">{en.tasks.status}: {en.common.all}</option>{w.statuses.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><select aria-label={en.tasks.priority} value={priority} onChange={e=>setPriority(e.target.value)}><option value="">{en.tasks.priority}: {en.common.all}</option>{Object.entries(en.priorities).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select><select aria-label={en.tasks.assignee} value={assignee} onChange={e=>setAssignee(e.target.value)}><option value="">{en.tasks.assignee}: {en.common.all}</option>{w.members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select><Button variant="ghost" size="sm" onClick={()=>{setStatus('');setPriority('');setAssignee('');setSearch('');}}>{en.common.clearFilters}</Button></div>}
- {view==='board'&&<div className="board">{w.statuses.map(s=><section className="board-column" key={s.id} onDragOver={e=>e.preventDefault()} onDrop={async e=>{e.preventDefault();const t=w.tasks.find(t=>t.id===e.dataTransfer.getData('text/plain'));if(t)await send({type:'task.update',id:t.id,version:t.version,data:{statusId:s.id}});}}><div className="column-header"><StatusDot w={w} id={s.id}/><h3>{s.name}</h3><span>{filtered.filter(t=>t.statusId===s.id).length}</span><button aria-label={en.common.newTask} onClick={()=>setCreateTask(true)}><Plus size={15}/></button></div><div className="column-tasks">{filtered.filter(t=>t.statusId===s.id).map(t=><button draggable={canEditTask(w,t)} onDragStart={e=>e.dataTransfer.setData('text/plain',t.id)} className="task-card" key={t.id} onClick={()=>setTaskId(t.id)}><div className="card-top"><span>{w.projects.find(p=>p.id===t.projectId)?.code}-{t.number}</span><MoreHorizontal size={16}/></div><h4>{t.title}</h4><div className="task-tags">{t.tags.map(tag=><span key={tag}>{tag}</span>)}</div><div className="card-bottom"><span className={`priority priority-${t.priority}`}><Flag size={12}/>{en.priorities[t.priority]}</span><Avatar name={w.members.find(m=>m.id===t.assigneeId)?.name??en.common.unassigned} size="small"/></div><div className="card-meta"><span className={t.dueDate&&t.dueDate<today()&&isOpen(w,t)?'overdue':''}><CalendarDays size={12}/>{formatDate(t.dueDate)}</span><span><CircleCheck size={12}/>{t.checklist.filter(c=>c.done).length}/{t.checklist.length}</span></div></button>)}{!filtered.some(t=>t.statusId===s.id)&&<div className="empty-column">{en.tasks.emptyColumn}</div>}</div></section>)}</div>}
- {view==='list'&&<div className="table-wrap"><table><thead><tr><th/><th>{en.tasks.titleLabel}</th><th>{en.tasks.status}</th><th>{en.tasks.priority}</th><th>{en.tasks.assignee}</th><th>{en.tasks.dueDate}</th></tr></thead><tbody>{filtered.map(t=><tr key={t.id}><td><input type="checkbox" aria-label={`${en.common.select} ${t.title}`} checked={selected.includes(t.id)} onChange={e=>setSelected(e.target.checked?[...selected,t.id]:selected.filter(id=>id!==t.id))}/></td><td><button className="table-task" onClick={()=>setTaskId(t.id)}><small>{w.projects.find(p=>p.id===t.projectId)?.code}-{t.number}</small>{t.title}</button></td><td><span className="status-label"><StatusDot w={w} id={t.statusId}/>{w.statuses.find(s=>s.id===t.statusId)?.name}</span></td><td><span className={`priority priority-${t.priority}`}>{en.priorities[t.priority]}</span></td><td>{w.members.find(m=>m.id===t.assigneeId)?.name??en.common.unassigned}</td><td>{formatDate(t.dueDate)}</td></tr>)}</tbody></table>{selected.length>0&&<div className="bulk-bar"><b>{selected.length} {en.tasks.selected}</b><select aria-label={en.tasks.bulkStatus} defaultValue="" onChange={async e=>{const statusId=e.target.value;for(const id of selected){const t=w.tasks.find(t=>t.id===id)!;if(!await send({type:'task.update',id,version:t.version,data:{statusId}}))break;}setSelected([]);}}><option value="" disabled>{en.tasks.bulkStatus}</option>{w.statuses.filter(s=>s.category!=='done').map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>}</div>}
- {view==='calendar'&&<Calendar tasks={filtered} month={month} setMonth={setMonth} open={setTaskId}/>} {!filtered.length&&view!=='board'&&<Empty title={en.common.noResults} note={en.tasks.emptyNote}/>}</>}
- {page==='team'&&<TeamPanel w={w} send={send} busy={busy}/>}
- {page==='reports'&&<ReportPanel w={w} month={month} setMonth={setMonth}/>}
- {page==='activity'&&<><Heading title={en.nav.activity} subtitle={en.overview.activity}/><div className="activity-list">{activityList()}</div></>}
- {page==='settings'&&<SettingsPanel w={w} send={send} busy={busy} demo={demo}/>}
- </main><footer className="app-footer"><span>{en.brand.name} <span lang="ar">{en.brand.arabic}</span></span><span>{en.brand.tagline}</span></footer></div>
- <Dialog open={createTask} onOpenChange={setCreateTask}><DialogContent><DialogTitle>{en.common.newTask}</DialogTitle><DialogDescription>{en.tasks.emptyNote}</DialogDescription><TaskForm key={projectId} w={w} projectId={projectId} busy={busy} onSubmit={async data=>{if(await send({type:'task.create',data}))setCreateTask(false);}}/><ErrorNotice error={error}/></DialogContent></Dialog>
- <Dialog open={createProject} onOpenChange={setCreateProject}><DialogContent><DialogTitle>{en.common.newProject}</DialogTitle><DialogDescription>{en.projects.createNote}</DialogDescription><ProjectForm w={w} busy={busy} onSubmit={async data=>{if(await send({type:'project.create',data}))setCreateProject(false);}}/><ErrorNotice error={error}/></DialogContent></Dialog>
- <Dialog open={!!task} onOpenChange={open=>{if(!open)setTaskId(null);}}><DialogContent className="task-detail"><DialogTitle>{task?.title}</DialogTitle><DialogDescription>{task?w.projects.find(p=>p.id===task.projectId)?.code+'-'+task.number:en.tasks.taskDetails}</DialogDescription>{task&&<TaskDetail key={task.id+'-'+task.version} w={w} task={task} send={send} busy={busy} activity={activityList(w.events.filter(e=>e.taskId===task.id))}/>}<ErrorNotice error={error}/></DialogContent></Dialog>
- <Dialog open={commandOpen} onOpenChange={setCommandOpen}><DialogContent className="command-dialog"><DialogTitle>{en.common.search}</DialogTitle><DialogDescription>{en.nav.workspace}</DialogDescription><div className="command-input"><Search size={20}/><input autoFocus aria-label={en.common.search} value={search} onChange={e=>setSearch(e.target.value)} placeholder={en.common.search}/></div><div className="command-results">{tasks.filter(t=>t.title.toLowerCase().includes(search.toLowerCase())).slice(0,8).map(t=><button key={t.id} onClick={()=>{setCommandOpen(false);setTaskId(t.id);}}><CircleCheck size={16}/>{t.title}<ChevronRight size={14}/></button>)}{w.projects.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())).map(p=><button key={p.id} onClick={()=>{setCommandOpen(false);navigate('projects',p.id);}}><Layers size={16}/>{p.name}</button>)}</div></DialogContent></Dialog></div>;
+type Page =
+  | "overview"
+  | "myTasks"
+  | "projects"
+  | "team"
+  | "reports"
+  | "activity"
+  | "settings";
+const nav = [
+  ["overview", LayoutDashboard],
+  ["myTasks", CircleCheck],
+  ["projects", Layers],
+  ["team", Users],
+  ["reports", ChartNoAxesCombined],
+  ["activity", Activity],
+] as const;
+const today = () => new Date().toISOString().slice(0, 10);
+function formatDate(value: string | null) {
+  return value
+    ? new Intl.DateTimeFormat("en", {
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC",
+      }).format(new Date(value))
+    : en.common.noDate;
 }
-function Heading({title,subtitle,children}:{title:string;subtitle:string;children?:React.ReactNode}){return <div className="page-heading"><div><h1>{title}</h1><p>{subtitle}</p></div>{children}</div>;}
-function Empty({title,note}:{title:string;note:string}){return <div className="empty"><CircleCheck size={30}/><h3>{title}</h3><p>{note}</p></div>;}
-function download(rows:unknown[][],name:string){const blob=new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-type Send=(command:Command|{type:'member.add';email:string})=>Promise<boolean>;
-type TaskData=Extract<Command,{type:'task.create'}>['data'];
-function TaskForm({w,task,projectId,busy,onSubmit}:{w:Workspace;task?:Task;projectId?:string|null;busy:boolean;onSubmit:(data:TaskData,reason?:string)=>Promise<void>}){return <form className="editor-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget);await onSubmit({title:String(f.get('title')).trim(),description:String(f.get('description')),projectId:String(f.get('projectId')),statusId:String(f.get('statusId')),priority:String(f.get('priority')) as Task['priority'],assigneeId:String(f.get('assigneeId'))||null,dueDate:String(f.get('dueDate'))||null,startDate:String(f.get('startDate'))||null,estimatedHours:Number(f.get('estimatedHours')),parentId:String(f.get('parentId'))||null,dependencyIds:f.getAll('dependencies').map(String),tags:String(f.get('tags')).split(',').map(t=>t.trim()).filter(Boolean),checklist:task?.checklist??[]},String(f.get('reason')));}}><label>{en.tasks.titleLabel}<input autoFocus name="title" required maxLength={200} defaultValue={task?.title} placeholder={en.tasks.titlePlaceholder}/></label><label>{en.tasks.description}<textarea name="description" rows={4} maxLength={20000} defaultValue={task?.description} placeholder={en.tasks.descriptionPlaceholder}/></label><div className="form-grid"><label>{en.tasks.project}<select name="projectId" required defaultValue={task?.projectId??projectId??w.projects.find(p=>!p.archived)?.id}>{w.projects.filter(p=>!p.archived).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label>{en.tasks.status}<select name="statusId" defaultValue={task?.statusId??w.statuses[0]?.id}>{w.statuses.filter(s=>s.category!=='done'||task?.statusId===s.id).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label>{en.tasks.assignee}<select name="assigneeId" defaultValue={task?.assigneeId??w.currentUserId}><option value="">{en.common.unassigned}</option>{w.members.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label>{en.tasks.priority}<select name="priority" defaultValue={task?.priority??'medium'}>{Object.entries(en.priorities).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label><label>{en.tasks.startDate}<input name="startDate" type="date" defaultValue={task?.startDate??''}/></label><label>{en.tasks.dueDate}<input name="dueDate" type="date" defaultValue={task?.dueDate??''}/></label><label>{en.tasks.estimate}<input name="estimatedHours" type="number" min={0} max={10000} step={0.25} defaultValue={task?.estimatedHours??0}/></label><label>{en.tasks.parent}<select name="parentId" defaultValue={task?.parentId??''}><option value="">{en.common.none}</option>{w.tasks.filter(t=>t.id!==task?.id&&!t.deletedAt).map(t=><option key={t.id} value={t.id}>{t.title}</option>)}</select></label></div><label>{en.tasks.tags}<input name="tags" defaultValue={task?.tags.join(', ')} placeholder={en.tasks.tagsPlaceholder}/></label><label>{en.tasks.dependencies}<select name="dependencies" multiple defaultValue={task?.dependencyIds??[]}>{w.tasks.filter(t=>t.id!==task?.id&&!t.deletedAt).map(t=><option key={t.id} value={t.id}>{t.title}</option>)}</select></label>{task&&<label>{en.tasks.transferReason}<input name="reason" maxLength={2000} placeholder={en.tasks.transferPlaceholder}/></label>}<div className="form-footer"><Button disabled={busy||!w.projects.some(p=>!p.archived)}>{busy?en.common.loading:task?en.common.save:en.common.newTask}<ArrowRight size={15}/></Button></div></form>;}
-function ProjectForm({w,busy,onSubmit}:{w:Workspace;busy:boolean;onSubmit:(data:Extract<Command,{type:'project.create'}>['data'])=>Promise<void>}){return <form className="editor-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget);await onSubmit({name:String(f.get('name')),code:String(f.get('code')).toUpperCase(),description:String(f.get('description')),color:String(f.get('color')),visibility:String(f.get('visibility')) as 'organization'|'private',memberIds:f.getAll('members').map(String)});}}><label>{en.projects.name}<input name="name" required maxLength={200}/></label><div className="form-grid"><label>{en.projects.code}<input name="code" required pattern="[A-Za-z][A-Za-z0-9]{1,7}" maxLength={8}/></label><label>{en.projects.color}<input name="color" type="color" defaultValue="#6b8d79"/></label></div><label>{en.projects.description}<textarea name="description" maxLength={5000}/></label><label>{en.projects.visibility}<select name="visibility"><option value="organization">{en.projects.organization}</option><option value="private">{en.projects.private}</option></select></label><fieldset><legend>{en.projects.members}</legend>{w.members.map(m=><label className="checkbox-label" key={m.id}><input name="members" type="checkbox" value={m.id} defaultChecked={m.id===w.currentUserId}/>{m.name}</label>)}</fieldset><Button disabled={busy}>{en.common.newProject}</Button></form>;}
-function TaskDetail({w,task,send,busy,activity}:{w:Workspace;task:Task;send:Send;busy:boolean;activity:React.ReactNode}){const[editing,setEditing]=useState(false);const[review,setReview]=useState('');const actor=w.members.find(m=>m.id===w.currentUserId)!;const editable=canEditTask(w,task);return <div className="detail-body">{editing?<TaskForm w={w} task={task} busy={busy} onSubmit={async(data,reason)=>{if(await send({type:'task.update',id:task.id,version:task.version,data,reason}))setEditing(false);}}:<><p className="task-description">{task.description||en.tasks.descriptionPlaceholder}</p><dl className="task-properties"><dt>{en.tasks.status}</dt><dd><StatusDot w={w} id={task.statusId}/>{w.statuses.find(s=>s.id===task.statusId)?.name}</dd><dt>{en.tasks.priority}</dt><dd><Flag size={14}/>{en.priorities[task.priority]}</dd><dt>{en.tasks.assignee}</dt><dd>{w.members.find(m=>m.id===task.assigneeId)?.name??en.common.unassigned}</dd><dt>{en.tasks.dueDate}</dt><dd>{formatDate(task.dueDate)}</dd><dt>{en.tasks.estimate}</dt><dd>{task.estimatedHours} {en.common.hours}</dd></dl>{editable&&<Button variant="outline" size="sm" onClick={()=>setEditing(true)}>{en.common.edit}</Button>}<div className="detail-section"><h3>{en.tasks.checklist}</h3>{task.checklist.map(item=><label className="checklist-item" key={item.id}><input type="checkbox" checked={item.done} disabled={busy||!editable} onChange={async e=>{await send({type:'task.update',id:task.id,version:task.version,data:{checklist:task.checklist.map(c=>c.id===item.id?{...c,done:e.target.checked}:c)}});}}/><span className={item.done?'checked':''}>{item.text}</span></label>)}{editable&&<form className="inline-form" onSubmit={async e=>{e.preventDefault();const form=e.currentTarget;const text=String(new FormData(form).get('text')).trim();if(text&&await send({type:'task.update',id:task.id,version:task.version,data:{checklist:[...task.checklist,{id:crypto.randomUUID(),text,done:false}]}}))form.reset();}}><input name="text" aria-label={en.tasks.checklistPlaceholder} placeholder={en.tasks.checklistPlaceholder} maxLength={200} required/><Button variant="outline" size="icon" disabled={busy} aria-label={en.common.add}><Plus size={16}/></Button></form>}</div><div className="detail-section"><h3>{en.tasks.subtasks}</h3>{w.tasks.filter(t=>t.parentId===task.id&&!t.deletedAt).map(t=><p className="status-label" key={t.id}><StatusDot w={w} id={t.statusId}/>{t.title}</p>)}</div>{editable&&w.statuses.find(s=>s.id===task.statusId)?.category!=='done'&&<div className="review-box">{w.statuses.find(s=>s.id===task.statusId)?.category==='review'?can(actor.role,'task.review')&&<><label>{en.tasks.reviewComment}<textarea value={review} onChange={e=>setReview(e.target.value)} placeholder={en.tasks.reviewPlaceholder}/></label><div className="button-row"><Button disabled={busy} onClick={()=>send({type:'task.review',id:task.id,version:task.version,approve:true,comment:review})}><Check size={15}/>{en.tasks.approve}</Button><Button variant="outline" disabled={busy||!review.trim()} onClick={()=>send({type:'task.review',id:task.id,version:task.version,approve:false,comment:review})}>{en.tasks.return}</Button></div></>:<Button variant="outline" disabled={busy} onClick={()=>{const s=w.statuses.find(s=>s.category==='review');if(s)void send({type:'task.update',id:task.id,version:task.version,data:{statusId:s.id}});}}>{en.tasks.submit}<ArrowRight size={15}/></Button>}</div>}</>}
- <div className="detail-section"><h3>{en.tasks.comments}</h3>{editable&&<form className="editor-form" onSubmit={async e=>{e.preventDefault();const form=e.currentTarget;const text=String(new FormData(form).get('comment'));if(await send({type:'task.comment',id:task.id,text}))form.reset();}}><textarea aria-label={en.tasks.commentPlaceholder} name="comment" maxLength={10000} required placeholder={en.tasks.commentPlaceholder}/><Button size="sm" variant="outline" disabled={busy}>{en.tasks.post}</Button></form>}<div className="activity-list">{activity}</div></div>{can(actor.role,'task.delete')&&<div className="detail-actions"><Button variant="ghost" size="sm" disabled={busy} onClick={()=>send({type:'task.archive',id:task.id,archived:!task.archived})}>{task.archived?en.common.restore:en.common.archive}</Button><Button variant="destructive" size="sm" disabled={busy} onClick={()=>{if(window.confirm(en.common.confirmDelete))void send({type:'task.delete',id:task.id});}}>{en.common.delete}</Button></div>}</div>;}
-function Calendar({tasks,month,setMonth,open}:{tasks:Task[];month:string;setMonth:(m:string)=>void;open:(id:string)=>void}){const[y,m]=month.split('-').map(Number);const first=new Date(Date.UTC(y,m-1,1));const days=Array.from({length:42},(_,i)=>new Date(Date.UTC(y,m-1,1-first.getUTCDay()+i)));const shift=(n:number)=>setMonth(new Date(Date.UTC(y,m-1+n,1)).toISOString().slice(0,7));return <div className="calendar"><div className="calendar-heading"><h2>{new Intl.DateTimeFormat('en',{month:'long',year:'numeric',timeZone:'UTC'}).format(first)}</h2><div><Button variant="ghost" size="icon" aria-label={en.tasks.previousMonth} onClick={()=>shift(-1)}><ChevronLeft size={16}/></Button><Button variant="ghost" size="icon" aria-label={en.tasks.nextMonth} onClick={()=>shift(1)}><ChevronRight size={16}/></Button></div></div><div className="calendar-weekdays">{days.slice(0,7).map(d=><span key={d.toISOString()}>{new Intl.DateTimeFormat('en',{weekday:'short',timeZone:'UTC'}).format(d)}</span>)}</div><div className="calendar-grid">{days.map(d=>{const key=d.toISOString().slice(0,10);return <div className={d.getUTCMonth()!==m-1?'outside':''} key={key}><time className={key===today()?'is-today':''}>{d.getUTCDate()}</time>{tasks.filter(t=>t.dueDate===key).map(t=><button key={t.id} onClick={()=>open(t.id)}>{t.title}</button>)}</div>;})}</div></div>;}
-function TeamPanel({w,send,busy}:{w:Workspace;send:Send;busy:boolean}){const[dialog,setDialog]=useState<'member'|'team'|'department'|null>(null);const actor=w.members.find(m=>m.id===w.currentUserId)!;const manage=can(actor.role,'user.manage');return <><Heading title={en.team.title} subtitle={en.team.subtitle}>{manage&&<Button onClick={()=>setDialog('member')}><Plus size={16}/>{en.team.addMember}</Button>}</Heading><div className="table-wrap"><table><thead><tr>{[en.team.name,en.team.role,en.team.team,en.team.workload,en.team.capacity].map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{w.members.map(m=>{const tasks=activeTasks(w).filter(t=>t.assigneeId===m.id&&isOpen(w,t));return <tr key={m.id}><td><div className="person-cell"><Avatar name={m.name}/><span>{m.name}<small>{m.email}</small></span></div></td><td>{manage?<select disabled={busy} value={m.role} aria-label={`${en.team.role} ${m.name}`} onChange={e=>send({type:'member.update',id:m.id,role:e.target.value as Role,teamId:m.teamId})}>{Object.entries(en.team.roles).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>:en.team.roles[m.role]}</td><td>{manage?<select disabled={busy} value={m.teamId??''} aria-label={`${en.team.team} ${m.name}`} onChange={e=>send({type:'member.update',id:m.id,role:m.role,teamId:e.target.value||null})}><option value="">{en.team.noTeam}</option>{w.teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>:w.teams.find(t=>t.id===m.teamId)?.name??en.team.noTeam}</td><td>{tasks.length}<div className="workload-bar"><span style={{width:`${Math.min(tasks.length/10*100,100)}%`}}/></div></td><td>{tasks.reduce((s,t)=>s+t.estimatedHours,0)} {en.common.hours}</td></tr>;})}</tbody></table></div><div className="team-sections"><section><div className="section-heading"><h2>{en.team.teams}</h2>{manage&&<Button variant="ghost" size="sm" onClick={()=>setDialog('team')}><Plus size={14}/>{en.team.addTeam}</Button>}</div>{w.teams.map(t=><div className="team-item" key={t.id}><Users size={18}/><span>{t.name}<small>{w.departments.find(d=>d.id===t.departmentId)?.name}</small></span><b>{w.members.filter(m=>m.teamId===t.id).length}</b></div>)}</section><section><div className="section-heading"><h2>{en.team.departments}</h2>{manage&&<Button variant="ghost" size="sm" onClick={()=>setDialog('department')}><Plus size={14}/>{en.team.addDepartment}</Button>}</div>{w.departments.map(d=><div className="team-item" key={d.id}><Layers size={18}/>{d.name}</div>)}</section></div><Dialog open={!!dialog} onOpenChange={open=>!open&&setDialog(null)}><DialogContent><DialogTitle>{dialog==='member'?en.team.addMember:dialog==='team'?en.team.addTeam:en.team.addDepartment}</DialogTitle><DialogDescription>{dialog==='member'?en.team.addMemberNote:en.team.subtitle}</DialogDescription><form className="editor-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget);const success=dialog==='member'?await send({type:'member.add',email:String(f.get('name'))}):dialog==='team'?await send({type:'team.create',name:String(f.get('name')),departmentId:String(f.get('department'))||null}):await send({type:'department.create',name:String(f.get('name'))});if(success)setDialog(null);}}><label>{dialog==='member'?en.team.email:en.team.name}<input name="name" type={dialog==='member'?'email':'text'} required maxLength={200}/></label>{dialog==='team'&&<label>{en.team.department}<select name="department"><option value="">{en.common.none}</option>{w.departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></label>}<Button disabled={busy}>{en.common.add}</Button></form></DialogContent></Dialog></>;}
-function ReportPanel({w,month,setMonth}:{w:Workspace;month:string;setMonth:(value:string)=>void}){const report=monthlyReport(w,month);const rows=w.members.map(m=>{const completed=report.completed.filter(t=>t.assigneeId===m.id);return [m.name,completed.length,activeTasks(w).filter(t=>t.assigneeId===m.id&&isOpen(w,t)).length,activeTasks(w).filter(t=>t.assigneeId===m.id&&isOpen(w,t)&&t.dueDate&&t.dueDate<today()).length,completed.filter(t=>t.dueDate&&t.completedAt!.slice(0,10)<=t.dueDate).length];});const headers=[en.team.name,en.reports.completedColumn,en.reports.active,en.reports.overdue,en.reports.onTimeColumn];return <><Heading title={en.reports.title} subtitle={en.reports.subtitle}><div className="button-row"><input aria-label={en.reports.month} type="month" value={month} onChange={e=>e.target.value&&setMonth(e.target.value)}/><Button variant="outline" onClick={()=>download([headers,...rows],`tamm-report-${month}.csv`)}><Download size={15}/>{en.common.export}</Button></div></Heading><div className="metrics">{[[en.reports.assigned,report.created],[en.reports.completed,report.completed.length],[en.reports.onTime,report.onTime===null?'—':report.onTime+'%'],[en.reports.cycle,report.cycleDays===null?'—':report.cycleDays.toFixed(1)+' '+en.reports.days]].map(([l,v])=><div className="metric" key={l}><span>{l}</span><strong>{v}</strong></div>)}</div><section className="section"><div className="section-heading"><h2>{en.reports.byPerson}</h2></div><div className="table-wrap"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r[0]}>{r.map((v,i)=><td key={i}>{v}</td>)}</tr>)}</tbody></table></div><p className="report-definition">{en.reports.definition}</p></section></>;}
-function SettingsPanel({w,send,busy,demo}:{w:Workspace;send:Send;busy:boolean;demo:boolean}){const actor=w.members.find(m=>m.id===w.currentUserId)!;return <><Heading title={en.settings.title} subtitle={en.settings.subtitle}/><div className="settings-grid"><section><h2>{en.settings.workflow}</h2><div className="workflow-list">{w.statuses.map(s=><div key={s.id}><StatusDot w={w} id={s.id}/><strong>{s.name}</strong><span>{en.settings.categories[s.category]}</span></div>)}</div>{can(actor.role,'workflow.manage')&&<form className="editor-form" onSubmit={async e=>{e.preventDefault();const form=e.currentTarget;const f=new FormData(form);if(await send({type:'workflow.create',name:String(f.get('name')),category:String(f.get('category')) as Workspace['statuses'][number]['category'],color:String(f.get('color'))}))form.reset();}}><label>{en.settings.statusName}<input name="name" required maxLength={200}/></label><div className="form-grid"><label>{en.settings.category}<select name="category">{Object.entries(en.settings.categories).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label><label>{en.projects.color}<input name="color" type="color" defaultValue="#6b8d79"/></label></div><Button variant="outline" disabled={busy}><Plus size={16}/>{en.settings.addStatus}</Button></form>}</section><section><h2>{en.settings.trash}</h2>{!w.tasks.some(t=>t.deletedAt)&&<p className="muted">{en.settings.trashEmpty}</p>}{w.tasks.filter(t=>t.deletedAt).map(t=><div className="restore-row" key={t.id}><span>{t.title}</span><Button variant="outline" size="sm" disabled={busy||!can(actor.role,'task.delete')} onClick={()=>send({type:'task.restore',id:t.id})}>{en.common.restore}</Button></div>)}<h2>{en.settings.archived}</h2>{w.tasks.filter(t=>t.archived&&!t.deletedAt).map(t=><div className="restore-row" key={t.id}><span>{t.title}</span><Button variant="outline" size="sm" disabled={busy||!can(actor.role,'task.delete')} onClick={()=>send({type:'task.archive',id:t.id,archived:false})}>{en.common.restore}</Button></div>)}{!demo&&<AccountSettings/>}</section></div></>;}
-function AccountSettings(){const[message,setMessage]=useState('');const[busy,setBusy]=useState(false);return <section className="detail-section"><h2>{en.settings.password}</h2><form className="editor-form" onSubmit={async e=>{e.preventDefault();setBusy(true);const form=e.currentTarget;const f=new FormData(form);try{const result=await authClient.changePassword({currentPassword:String(f.get('currentPassword')),newPassword:String(f.get('newPassword')),revokeOtherSessions:true});setMessage(result.error?en.common.error:en.settings.passwordChanged);if(!result.error)form.reset();}catch{setMessage(en.common.error);}finally{setBusy(false);}}}><label>{en.settings.currentPassword}<input name="currentPassword" autoComplete="current-password" type="password" required/></label><label>{en.settings.newPassword}<input name="newPassword" autoComplete="new-password" type="password" minLength={12} required/></label><Button disabled={busy}>{en.common.save}</Button><p role="status">{message}</p></form></section>;}
+function Avatar({ name, size = "" }: { name: string; size?: string }) {
+  return (
+    <span className={`avatar ${size}`} title={name}>
+      {name
+        .split(" ")
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join("")}
+    </span>
+  );
+}
+function StatusDot({ w, id }: { w: Workspace; id: string }) {
+  const s = w.statuses.find((s) => s.id === id);
+  return (
+    <span
+      className="status-dot"
+      style={{ "--status": s?.color } as React.CSSProperties}
+    >
+      {s?.category === "done" ? <Check size={10} /> : null}
+    </span>
+  );
+}
+function ErrorNotice({ error }: { error: string }) {
+  return error ? (
+    <p role="alert" className="error">
+      {error}
+    </p>
+  ) : null;
+}
+export function TammApp({ demo = false }: { demo?: boolean }) {
+  const [w, setW] = useState<Workspace | null>(null);
+  const [page, setPage] = useState<Page>("overview");
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [view, setView] = useState<"board" | "list" | "calendar">("board");
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [priority, setPriority] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const [filter, setFilter] = useState(false);
+  const [mobile, setMobile] = useState(false);
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [createTask, setCreateTask] = useState(false);
+  const [createProject, setCreateProject] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [month, setMonth] = useState(today().slice(0, 7));
+  const [selected, setSelected] = useState<string[]>([]);
+  const operation = useRef(false);
+  const workspaceRef = useRef<Workspace | null>(null);
+  workspaceRef.current = w;
+  useEffect(() => {
+    if (demo) {
+      setW(createDemo());
+      setLoaded(true);
+      return;
+    }
+    fetch("/api/workspace")
+      .then(async (r) => {
+        if (r.status === 401) {
+          window.location.assign("/login");
+          return;
+        }
+        if (!r.ok) throw Error();
+        const data = await r.json();
+        setW(data.workspace);
+        setLoaded(true);
+      })
+      .catch(() => {
+        setError(en.common.error);
+        setLoaded(true);
+      });
+  }, [demo]);
+  useEffect(() => {
+    const listener = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
+  }, []);
+  async function send(
+    command:
+      | Command
+      | { type: "workspace.create"; name: string }
+      | { type: "member.add"; email: string },
+  ) {
+    if (operation.current) return false;
+    operation.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      if (demo && workspaceRef.current) {
+        if (command.type === "member.add") throw new DomainError("email");
+        const next = applyCommand(workspaceRef.current, command as Command);
+        workspaceRef.current = next;
+        setW(next);
+      } else {
+        const r = await fetch("/api/workspace", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(command),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new DomainError(data.error);
+        setW(data.workspace);
+      }
+      return true;
+    } catch (e) {
+      setError(
+        e instanceof DomainError
+          ? (en.errors[e.code as keyof typeof en.errors] ?? en.common.error)
+          : en.common.error,
+      );
+      return false;
+    } finally {
+      operation.current = false;
+      setBusy(false);
+    }
+  }
+  function navigate(next: Page, id: string | null = null) {
+    setPage(next);
+    setProjectId(id);
+    setSearch("");
+    setSelected([]);
+    setMobile(false);
+  }
+  const person = w?.members.find((m) => m.id === w.currentUserId);
+  const tasks = useMemo(() => (w ? activeTasks(w) : []), [w]);
+  const filtered = tasks.filter(
+    (t) =>
+      (!projectId || t.projectId === projectId) &&
+      (page !== "myTasks" || t.assigneeId === w?.currentUserId) &&
+      (!status || t.statusId === status) &&
+      (!priority || t.priority === priority) &&
+      (!assignee || t.assigneeId === assignee) &&
+      (!search ||
+        `${t.title} ${t.description} ${t.tags.join(" ")} ${w?.projects.find((p) => p.id === t.projectId)?.name} ${t.number} ${w?.members.find((m) => m.id === t.assigneeId)?.name}`
+          .toLowerCase()
+          .includes(search.toLowerCase())),
+  );
+  const task = w?.tasks.find((t) => t.id === taskId);
+  const project = w?.projects.find((p) => p.id === projectId);
+  function exportTasks() {
+    if (!w) return;
+    const rows = [
+      [
+        en.tasks.titleLabel,
+        en.tasks.project,
+        en.tasks.status,
+        en.tasks.priority,
+        en.tasks.assignee,
+        en.tasks.dueDate,
+      ],
+      ...filtered.map((t) => [
+        t.title,
+        w.projects.find((p) => p.id === t.projectId)?.name,
+        w.statuses.find((s) => s.id === t.statusId)?.name,
+        en.priorities[t.priority],
+        w.members.find((m) => m.id === t.assigneeId)?.name,
+        t.dueDate,
+      ]),
+    ];
+    download(rows, "tamm-tasks.csv");
+  }
+  if (!loaded)
+    return (
+      <main className="loading" aria-live="polite">
+        {en.common.loading}
+      </main>
+    );
+  if (!w)
+    return (
+      <main className="onboarding">
+        <Link href="/" className="brand">
+          <span className="brand-mark">
+            <Check />
+          </span>
+          {en.brand.name}
+        </Link>
+        <h1>{en.auth.workspaceTitle}</h1>
+        <p>{en.auth.workspaceSubtitle}</p>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            await send({
+              type: "workspace.create",
+              name: String(new FormData(e.currentTarget).get("name")),
+            });
+          }}
+        >
+          <label>
+            {en.auth.workspaceName}
+            <input name="name" required maxLength={100} />
+          </label>
+          <Button disabled={busy}>
+            {en.auth.createWorkspace}
+            <ArrowRight size={16} />
+          </Button>
+        </form>
+        <ErrorNotice error={error} />
+      </main>
+    );
+  const row = (t: Task) => (
+    <button className="task-row" key={t.id} onClick={() => setTaskId(t.id)}>
+      <StatusDot w={w} id={t.statusId} />
+      <span className="task-row-name">
+        {t.title}
+        <small>{w.projects.find((p) => p.id === t.projectId)?.name}</small>
+      </span>
+      <span className={`priority priority-${t.priority}`}>
+        <Flag size={12} />
+        {en.priorities[t.priority]}
+      </span>
+      <time
+        className={
+          t.dueDate && t.dueDate < today() && isOpen(w, t) ? "overdue" : ""
+        }
+      >
+        {formatDate(t.dueDate)}
+      </time>
+      {t.assigneeId ? (
+        <Avatar
+          name={w.members.find((m) => m.id === t.assigneeId)?.name ?? ""}
+        />
+      ) : (
+        <span />
+      )}
+      <ChevronRight size={14} />
+    </button>
+  );
+  const projectCard = (p: Workspace["projects"][number]) => {
+    const all = tasks.filter((t) => t.projectId === p.id),
+      done = all.filter((t) => isDone(w, t)).length;
+    const progress = all.length ? Math.round((done / all.length) * 100) : 0;
+    return (
+      <button
+        className="project-card"
+        key={p.id}
+        onClick={() => navigate("projects", p.id)}
+      >
+        <span className="project-monogram" style={{ background: p.color }}>
+          <Layers size={20} />
+        </span>
+        <ArrowUpRight className="card-arrow" size={17} />
+        <h3>{p.name}</h3>
+        <p>{p.description}</p>
+        <div className="project-progress">
+          <span>
+            {all.length - done} {en.projects.openTasks}
+          </span>
+          <b>{progress}%</b>
+        </div>
+        <div className="progress-track">
+          <span style={{ width: `${progress}%`, background: p.color }} />
+        </div>
+        <div className="project-footer">
+          <span className="avatar-stack">
+            {p.memberIds.slice(0, 3).map((id) => (
+              <Avatar
+                key={id}
+                name={w.members.find((m) => m.id === id)?.name ?? ""}
+                size="small"
+              />
+            ))}
+          </span>
+          <span>{p.code}</span>
+        </div>
+      </button>
+    );
+  };
+  const activityList = (events = w.events) =>
+    events
+      .slice()
+      .reverse()
+      .slice(0, 40)
+      .map((e) => (
+        <div className="event" key={e.id}>
+          <Avatar
+            name={w.members.find((m) => m.id === e.actorId)?.name ?? ""}
+            size="small"
+          />
+          <div>
+            <p>
+              <strong>{w.members.find((m) => m.id === e.actorId)?.name}</strong>{" "}
+              {en.events[e.action as keyof typeof en.events] ?? e.action}
+            </p>
+            {e.taskId && (
+              <button className="text-link" onClick={() => setTaskId(e.taskId)}>
+                {w.tasks.find((t) => t.id === e.taskId)?.title}
+              </button>
+            )}
+            {e.text && <p className="muted">{e.text}</p>}
+            <time>{formatDate(e.createdAt)}</time>
+          </div>
+        </div>
+      ));
+  return (
+    <div className="app-shell">
+      <aside className={`sidebar ${mobile ? "is-open" : ""}`}>
+        <Link href="/" className="brand">
+          <span className="brand-mark">
+            <Check size={22} />
+          </span>
+          {en.brand.name}
+          <span className="arabic">{en.brand.arabic}</span>
+        </Link>
+        <div className="workspace-label">
+          <span className="workspace-initial">{w.name[0]}</span>
+          <span>
+            {w.name}
+            <small>{demo ? en.nav.demo : en.nav.live}</small>
+          </span>
+        </div>
+        <button className="sidebar-search" onClick={() => setCommandOpen(true)}>
+          <Search size={15} />
+          {en.common.searchShort}
+          <kbd>⌘ K</kbd>
+        </button>
+        <span className="nav-caption">{en.nav.workspace}</span>
+        <nav>
+          {nav
+            .filter(
+              ([key]) => key !== "reports" || can(person!.role, "report.view"),
+            )
+            .map(([key, Icon]) => (
+              <button
+                key={key}
+                className={page === key && !projectId ? "active" : ""}
+                onClick={() => navigate(key)}
+              >
+                <Icon size={18} />
+                {en.nav[key]}
+                {key === "myTasks" && (
+                  <span className="nav-count">
+                    {
+                      tasks.filter(
+                        (t) => t.assigneeId === person?.id && isOpen(w, t),
+                      ).length
+                    }
+                  </span>
+                )}
+              </button>
+            ))}
+        </nav>
+        <div className="nav-caption project-caption">
+          {en.nav.favorites}
+          {can(person!.role, "project.manage") && (
+            <button
+              aria-label={en.common.newProject}
+              onClick={() => setCreateProject(true)}
+            >
+              <Plus size={14} />
+            </button>
+          )}
+        </div>
+        <nav>
+          {w.projects
+            .filter((p) => !p.archived)
+            .map((p) => (
+              <button
+                className={projectId === p.id ? "active" : ""}
+                key={p.id}
+                onClick={() => navigate("projects", p.id)}
+              >
+                <span className="project-dot" style={{ background: p.color }} />
+                {p.name}
+              </button>
+            ))}
+        </nav>
+        <div className="sidebar-bottom">
+          {demo && (
+            <div className="demo-note">
+              <span>{en.nav.demo}</span>
+              <p>{en.nav.demoNote}</p>
+              <Link href="/login">
+                {en.nav.switch}
+                <ArrowUpRight size={14} />
+              </Link>
+            </div>
+          )}
+          <nav>
+            <button
+              className={page === "settings" ? "active" : ""}
+              onClick={() => navigate("settings")}
+            >
+              <Settings size={17} />
+              {en.nav.settings}
+            </button>
+            <a
+              href="https://github.com/mahmoude4477/tamm"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Github size={17} />
+              {en.nav.help}
+            </a>
+          </nav>
+          <div className="profile">
+            <Avatar name={person!.name} />
+            <span>
+              {person!.name}
+              <small>{en.team.roles[person!.role]}</small>
+            </span>
+            {!demo && (
+              <button
+                aria-label={en.common.signOut}
+                onClick={async () => {
+                  await authClient.signOut();
+                  window.location.assign("/login");
+                }}
+              >
+                <LogOut size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      </aside>
+      {mobile && (
+        <button
+          className="mobile-backdrop"
+          aria-label={en.common.close}
+          onClick={() => setMobile(false)}
+        />
+      )}
+      <div className="main-shell">
+        <header className="topbar">
+          <button
+            className="mobile-menu"
+            aria-label={en.common.menu}
+            onClick={() => setMobile(true)}
+          >
+            <PanelLeftClose size={18} />
+          </button>
+          <span>{en.nav.workspace}</span>
+          <ChevronRight size={13} />
+          <strong>{project?.name ?? en.nav[page]}</strong>
+          <div className="topbar-end">
+            <span className="today">
+              {new Intl.DateTimeFormat("en", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              }).format(new Date())}
+            </span>
+            <button
+              className="top-search"
+              aria-label={en.common.search}
+              onClick={() => setCommandOpen(true)}
+            >
+              <Search size={18} />
+            </button>
+            <Avatar name={person!.name} size="small" />
+          </div>
+        </header>
+        <main className="main-content">
+          <ErrorNotice error={error} />
+          {page === "overview" && (
+            <>
+              <div className="page-heading overview-heading">
+                <div>
+                  <span className="eyebrow">{en.overview.eyebrow}</span>
+                  <h1>{en.overview.title}</h1>
+                  <p>{en.overview.subtitle}</p>
+                </div>
+                {can(person!.role, "task.create") && (
+                  <Button onClick={() => setCreateTask(true)}>
+                    <Plus size={16} />
+                    {en.common.newTask}
+                  </Button>
+                )}
+              </div>
+              <div className="metrics">
+                {[
+                  [
+                    en.overview.open,
+                    tasks.filter((t) => isOpen(w, t)).length,
+                    Circle,
+                  ],
+                  [
+                    en.overview.overdue,
+                    tasks.filter(
+                      (t) => isOpen(w, t) && t.dueDate && t.dueDate < today(),
+                    ).length,
+                    Clock,
+                  ],
+                  [
+                    en.overview.review,
+                    tasks.filter(
+                      (t) =>
+                        w.statuses.find((s) => s.id === t.statusId)
+                          ?.category === "review",
+                    ).length,
+                    MessageSquare,
+                  ],
+                  [
+                    en.overview.completed,
+                    tasks.filter((t) => isDone(w, t)).length,
+                    CircleCheck,
+                  ],
+                ].map(([label, count, Icon], i) => {
+                  const I = Icon as typeof Circle;
+                  return (
+                    <div className={`metric metric-${i}`} key={String(label)}>
+                      <span>
+                        {String(label)}
+                        <I size={17} />
+                      </span>
+                      <strong>
+                        {String(count)}
+                        <span className="metric-line" />
+                      </strong>
+                    </div>
+                  );
+                })}
+              </div>
+              <section className="section">
+                <div className="section-heading">
+                  <div>
+                    <h2>{en.overview.attention}</h2>
+                    <p>{en.overview.attentionNote}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate("myTasks")}
+                  >
+                    {en.overview.viewAll}
+                    <ArrowRight size={14} />
+                  </Button>
+                </div>
+                <div className="task-rows">
+                  {tasks
+                    .filter((t) => isOpen(w, t))
+                    .sort((a, b) =>
+                      (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999"),
+                    )
+                    .slice(0, 5)
+                    .map(row)}
+                  {!tasks.some((t) => isOpen(w, t)) && (
+                    <Empty
+                      title={en.overview.allClear}
+                      note={en.overview.allClearNote}
+                    />
+                  )}
+                </div>
+              </section>
+              <section className="section">
+                <div className="section-heading">
+                  <h2>{en.overview.projects}</h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate("projects")}
+                  >
+                    {en.nav.projects}
+                    <ArrowRight size={14} />
+                  </Button>
+                </div>
+                <div className="project-grid">
+                  {w.projects.filter((p) => !p.archived).map(projectCard)}
+                </div>
+              </section>
+              <section className="section">
+                <div className="section-heading">
+                  <h2>{en.overview.activity}</h2>
+                </div>
+                <div className="activity-list">
+                  {activityList(w.events.slice(-3))}
+                </div>
+              </section>
+            </>
+          )}
+          {page === "projects" && !projectId && (
+            <>
+              <Heading
+                title={en.projects.title}
+                subtitle={en.projects.subtitle}
+              >
+                <Button
+                  onClick={() => setCreateProject(true)}
+                  disabled={!can(person!.role, "project.manage")}
+                >
+                  <Plus size={16} />
+                  {en.common.newProject}
+                </Button>
+              </Heading>
+              <div className="project-grid">
+                {w.projects.filter((p) => !p.archived).map(projectCard)}
+              </div>
+              {!w.projects.length && (
+                <Empty
+                  title={en.projects.noProjects}
+                  note={en.projects.createNote}
+                />
+              )}
+            </>
+          )}
+          {(page === "myTasks" || projectId) && (
+            <>
+              <Heading
+                title={project?.name ?? en.tasks.myTitle}
+                subtitle={project?.description ?? en.tasks.mySubtitle}
+              >
+                {can(person!.role, "task.create") && (
+                  <Button onClick={() => setCreateTask(true)}>
+                    <Plus size={16} />
+                    {en.common.newTask}
+                  </Button>
+                )}
+              </Heading>
+              <div className="view-toolbar">
+                <div className="view-tabs">
+                  {(
+                    [
+                      ["board", Columns3],
+                      ["list", List],
+                      ["calendar", CalendarDays],
+                    ] as const
+                  ).map(([name, Icon]) => (
+                    <button
+                      key={name}
+                      className={view === name ? "active" : ""}
+                      onClick={() => setView(name)}
+                    >
+                      <Icon size={15} />
+                      {en.tasks[name]}
+                    </button>
+                  ))}
+                </div>
+                <div className="toolbar-actions">
+                  <div className="inline-search">
+                    <Search size={15} />
+                    <input
+                      aria-label={en.common.search}
+                      placeholder={en.common.searchShort}
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFilter(!filter)}
+                  >
+                    <SlidersHorizontal size={14} />
+                    {en.tasks.filter}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={exportTasks}
+                    aria-label={en.common.export}
+                  >
+                    <Download size={16} />
+                  </Button>
+                </div>
+              </div>
+              {filter && (
+                <div className="filters">
+                  <select
+                    aria-label={en.tasks.status}
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                  >
+                    <option value="">
+                      {en.tasks.status}: {en.common.all}
+                    </option>
+                    {w.statuses.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label={en.tasks.priority}
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                  >
+                    <option value="">
+                      {en.tasks.priority}: {en.common.all}
+                    </option>
+                    {Object.entries(en.priorities).map(([v, l]) => (
+                      <option key={v} value={v}>
+                        {l}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label={en.tasks.assignee}
+                    value={assignee}
+                    onChange={(e) => setAssignee(e.target.value)}
+                  >
+                    <option value="">
+                      {en.tasks.assignee}: {en.common.all}
+                    </option>
+                    {w.members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setStatus("");
+                      setPriority("");
+                      setAssignee("");
+                      setSearch("");
+                    }}
+                  >
+                    {en.common.clearFilters}
+                  </Button>
+                </div>
+              )}
+              {view === "board" && (
+                <div className="board">
+                  {w.statuses.map((s) => (
+                    <section
+                      className="board-column"
+                      key={s.id}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={async (e) => {
+                        e.preventDefault();
+                        const t = w.tasks.find(
+                          (t) => t.id === e.dataTransfer.getData("text/plain"),
+                        );
+                        if (t)
+                          await send({
+                            type: "task.update",
+                            id: t.id,
+                            version: t.version,
+                            data: { statusId: s.id },
+                          });
+                      }}
+                    >
+                      <div className="column-header">
+                        <StatusDot w={w} id={s.id} />
+                        <h3>{s.name}</h3>
+                        <span>
+                          {filtered.filter((t) => t.statusId === s.id).length}
+                        </span>
+                        <button
+                          aria-label={en.common.newTask}
+                          onClick={() => setCreateTask(true)}
+                        >
+                          <Plus size={15} />
+                        </button>
+                      </div>
+                      <div className="column-tasks">
+                        {filtered
+                          .filter((t) => t.statusId === s.id)
+                          .map((t) => (
+                            <button
+                              draggable={canEditTask(w, t)}
+                              onDragStart={(e) =>
+                                e.dataTransfer.setData("text/plain", t.id)
+                              }
+                              className="task-card"
+                              key={t.id}
+                              onClick={() => setTaskId(t.id)}
+                            >
+                              <div className="card-top">
+                                <span>
+                                  {
+                                    w.projects.find((p) => p.id === t.projectId)
+                                      ?.code
+                                  }
+                                  -{t.number}
+                                </span>
+                                <MoreHorizontal size={16} />
+                              </div>
+                              <h4>{t.title}</h4>
+                              <div className="task-tags">
+                                {t.tags.map((tag) => (
+                                  <span key={tag}>{tag}</span>
+                                ))}
+                              </div>
+                              <div className="card-bottom">
+                                <span
+                                  className={`priority priority-${t.priority}`}
+                                >
+                                  <Flag size={12} />
+                                  {en.priorities[t.priority]}
+                                </span>
+                                <Avatar
+                                  name={
+                                    w.members.find((m) => m.id === t.assigneeId)
+                                      ?.name ?? en.common.unassigned
+                                  }
+                                  size="small"
+                                />
+                              </div>
+                              <div className="card-meta">
+                                <span
+                                  className={
+                                    t.dueDate &&
+                                    t.dueDate < today() &&
+                                    isOpen(w, t)
+                                      ? "overdue"
+                                      : ""
+                                  }
+                                >
+                                  <CalendarDays size={12} />
+                                  {formatDate(t.dueDate)}
+                                </span>
+                                <span>
+                                  <CircleCheck size={12} />
+                                  {t.checklist.filter((c) => c.done).length}/
+                                  {t.checklist.length}
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        {!filtered.some((t) => t.statusId === s.id) && (
+                          <div className="empty-column">
+                            {en.tasks.emptyColumn}
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              )}
+              {view === "list" && (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th />
+                        <th>{en.tasks.titleLabel}</th>
+                        <th>{en.tasks.status}</th>
+                        <th>{en.tasks.priority}</th>
+                        <th>{en.tasks.assignee}</th>
+                        <th>{en.tasks.dueDate}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((t) => (
+                        <tr key={t.id}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              aria-label={`${en.common.select} ${t.title}`}
+                              checked={selected.includes(t.id)}
+                              onChange={(e) =>
+                                setSelected(
+                                  e.target.checked
+                                    ? [...selected, t.id]
+                                    : selected.filter((id) => id !== t.id),
+                                )
+                              }
+                            />
+                          </td>
+                          <td>
+                            <button
+                              className="table-task"
+                              onClick={() => setTaskId(t.id)}
+                            >
+                              <small>
+                                {
+                                  w.projects.find((p) => p.id === t.projectId)
+                                    ?.code
+                                }
+                                -{t.number}
+                              </small>
+                              {t.title}
+                            </button>
+                          </td>
+                          <td>
+                            <span className="status-label">
+                              <StatusDot w={w} id={t.statusId} />
+                              {
+                                w.statuses.find((s) => s.id === t.statusId)
+                                  ?.name
+                              }
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`priority priority-${t.priority}`}>
+                              {en.priorities[t.priority]}
+                            </span>
+                          </td>
+                          <td>
+                            {w.members.find((m) => m.id === t.assigneeId)
+                              ?.name ?? en.common.unassigned}
+                          </td>
+                          <td>{formatDate(t.dueDate)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {selected.length > 0 && (
+                    <div className="bulk-bar">
+                      <b>
+                        {selected.length} {en.tasks.selected}
+                      </b>
+                      <select
+                        aria-label={en.tasks.bulkStatus}
+                        defaultValue=""
+                        onChange={async (e) => {
+                          const statusId = e.target.value;
+                          for (const id of selected) {
+                            const t = w.tasks.find((t) => t.id === id)!;
+                            if (
+                              !(await send({
+                                type: "task.update",
+                                id,
+                                version: t.version,
+                                data: { statusId },
+                              }))
+                            )
+                              break;
+                          }
+                          setSelected([]);
+                        }}
+                      >
+                        <option value="" disabled>
+                          {en.tasks.bulkStatus}
+                        </option>
+                        {w.statuses
+                          .filter((s) => s.category !== "done")
+                          .map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+              {view === "calendar" && (
+                <Calendar
+                  tasks={filtered}
+                  month={month}
+                  setMonth={setMonth}
+                  open={setTaskId}
+                />
+              )}{" "}
+              {!filtered.length && view !== "board" && (
+                <Empty title={en.common.noResults} note={en.tasks.emptyNote} />
+              )}
+            </>
+          )}
+          {page === "team" && <TeamPanel w={w} send={send} busy={busy} />}
+          {page === "reports" && (
+            <ReportPanel w={w} month={month} setMonth={setMonth} />
+          )}
+          {page === "activity" && (
+            <>
+              <Heading
+                title={en.nav.activity}
+                subtitle={en.overview.activity}
+              />
+              <div className="activity-list">{activityList()}</div>
+            </>
+          )}
+          {page === "settings" && (
+            <SettingsPanel w={w} send={send} busy={busy} demo={demo} />
+          )}
+        </main>
+        <footer className="app-footer">
+          <span>
+            {en.brand.name} <span lang="ar">{en.brand.arabic}</span>
+          </span>
+          <span>{en.brand.tagline}</span>
+        </footer>
+      </div>
+      <Dialog open={createTask} onOpenChange={setCreateTask}>
+        <DialogContent>
+          <DialogTitle>{en.common.newTask}</DialogTitle>
+          <DialogDescription>{en.tasks.emptyNote}</DialogDescription>
+          <TaskForm
+            key={projectId}
+            w={w}
+            projectId={projectId}
+            busy={busy}
+            onSubmit={async (data) => {
+              if (await send({ type: "task.create", data }))
+                setCreateTask(false);
+            }}
+          />
+          <ErrorNotice error={error} />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={createProject} onOpenChange={setCreateProject}>
+        <DialogContent>
+          <DialogTitle>{en.common.newProject}</DialogTitle>
+          <DialogDescription>{en.projects.createNote}</DialogDescription>
+          <ProjectForm
+            w={w}
+            busy={busy}
+            onSubmit={async (data) => {
+              if (await send({ type: "project.create", data }))
+                setCreateProject(false);
+            }}
+          />
+          <ErrorNotice error={error} />
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!task}
+        onOpenChange={(open) => {
+          if (!open) setTaskId(null);
+        }}
+      >
+        <DialogContent className="task-detail">
+          <DialogTitle>{task?.title}</DialogTitle>
+          <DialogDescription>
+            {task
+              ? w.projects.find((p) => p.id === task.projectId)?.code +
+                "-" +
+                task.number
+              : en.tasks.taskDetails}
+          </DialogDescription>
+          {task && (
+            <TaskDetail
+              key={task.id + "-" + task.version}
+              w={w}
+              task={task}
+              send={send}
+              busy={busy}
+              activity={activityList(
+                w.events.filter((e) => e.taskId === task.id),
+              )}
+            />
+          )}
+          <ErrorNotice error={error} />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
+        <DialogContent className="command-dialog">
+          <DialogTitle>{en.common.search}</DialogTitle>
+          <DialogDescription>{en.nav.workspace}</DialogDescription>
+          <div className="command-input">
+            <Search size={20} />
+            <input
+              autoFocus
+              aria-label={en.common.search}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={en.common.search}
+            />
+          </div>
+          <div className="command-results">
+            {tasks
+              .filter((t) =>
+                t.title.toLowerCase().includes(search.toLowerCase()),
+              )
+              .slice(0, 8)
+              .map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    setCommandOpen(false);
+                    setTaskId(t.id);
+                  }}
+                >
+                  <CircleCheck size={16} />
+                  {t.title}
+                  <ChevronRight size={14} />
+                </button>
+              ))}
+            {w.projects
+              .filter((p) =>
+                p.name.toLowerCase().includes(search.toLowerCase()),
+              )
+              .map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    setCommandOpen(false);
+                    navigate("projects", p.id);
+                  }}
+                >
+                  <Layers size={16} />
+                  {p.name}
+                </button>
+              ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+function Heading({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="page-heading">
+      <div>
+        <h1>{title}</h1>
+        <p>{subtitle}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+function Empty({ title, note }: { title: string; note: string }) {
+  return (
+    <div className="empty">
+      <CircleCheck size={30} />
+      <h3>{title}</h3>
+      <p>{note}</p>
+    </div>
+  );
+}
+function download(rows: unknown[][], name: string) {
+  const blob = new Blob(
+    ["\ufeff" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n")],
+    { type: "text/csv;charset=utf-8" },
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+type Send = (
+  command: Command | { type: "member.add"; email: string },
+) => Promise<boolean>;
+type TaskData = Extract<Command, { type: "task.create" }>["data"];
+function TaskForm({
+  w,
+  task,
+  projectId,
+  busy,
+  onSubmit,
+}: {
+  w: Workspace;
+  task?: Task;
+  projectId?: string | null;
+  busy: boolean;
+  onSubmit: (data: TaskData, reason?: string) => Promise<void>;
+}) {
+  return (
+    <form
+      className="editor-form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const f = new FormData(e.currentTarget);
+        await onSubmit(
+          {
+            title: String(f.get("title")).trim(),
+            description: String(f.get("description")),
+            projectId: String(f.get("projectId")),
+            statusId: String(f.get("statusId")),
+            priority: String(f.get("priority")) as Task["priority"],
+            assigneeId: String(f.get("assigneeId")) || null,
+            dueDate: String(f.get("dueDate")) || null,
+            startDate: String(f.get("startDate")) || null,
+            estimatedHours: Number(f.get("estimatedHours")),
+            parentId: String(f.get("parentId")) || null,
+            dependencyIds: f.getAll("dependencies").map(String),
+            tags: String(f.get("tags"))
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean),
+            checklist: task?.checklist ?? [],
+          },
+          String(f.get("reason")),
+        );
+      }}
+    >
+      <label>
+        {en.tasks.titleLabel}
+        <input
+          autoFocus
+          name="title"
+          required
+          maxLength={200}
+          defaultValue={task?.title}
+          placeholder={en.tasks.titlePlaceholder}
+        />
+      </label>
+      <label>
+        {en.tasks.description}
+        <textarea
+          name="description"
+          rows={4}
+          maxLength={20000}
+          defaultValue={task?.description}
+          placeholder={en.tasks.descriptionPlaceholder}
+        />
+      </label>
+      <div className="form-grid">
+        <label>
+          {en.tasks.project}
+          <select
+            name="projectId"
+            required
+            defaultValue={
+              task?.projectId ??
+              projectId ??
+              w.projects.find((p) => !p.archived)?.id
+            }
+          >
+            {w.projects
+              .filter((p) => !p.archived)
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label>
+          {en.tasks.status}
+          <select
+            name="statusId"
+            defaultValue={task?.statusId ?? w.statuses[0]?.id}
+          >
+            {w.statuses
+              .filter((s) => s.category !== "done" || task?.statusId === s.id)
+              .map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label>
+          {en.tasks.assignee}
+          <select
+            name="assigneeId"
+            defaultValue={task?.assigneeId ?? w.currentUserId}
+          >
+            <option value="">{en.common.unassigned}</option>
+            {w.members.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {en.tasks.priority}
+          <select name="priority" defaultValue={task?.priority ?? "medium"}>
+            {Object.entries(en.priorities).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {en.tasks.startDate}
+          <input
+            name="startDate"
+            type="date"
+            defaultValue={task?.startDate ?? ""}
+          />
+        </label>
+        <label>
+          {en.tasks.dueDate}
+          <input
+            name="dueDate"
+            type="date"
+            defaultValue={task?.dueDate ?? ""}
+          />
+        </label>
+        <label>
+          {en.tasks.estimate}
+          <input
+            name="estimatedHours"
+            type="number"
+            min={0}
+            max={10000}
+            step={0.25}
+            defaultValue={task?.estimatedHours ?? 0}
+          />
+        </label>
+        <label>
+          {en.tasks.parent}
+          <select name="parentId" defaultValue={task?.parentId ?? ""}>
+            <option value="">{en.common.none}</option>
+            {w.tasks
+              .filter((t) => t.id !== task?.id && !t.deletedAt)
+              .map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.title}
+                </option>
+              ))}
+          </select>
+        </label>
+      </div>
+      <label>
+        {en.tasks.tags}
+        <input
+          name="tags"
+          defaultValue={task?.tags.join(", ")}
+          placeholder={en.tasks.tagsPlaceholder}
+        />
+      </label>
+      <label>
+        {en.tasks.dependencies}
+        <select
+          name="dependencies"
+          multiple
+          defaultValue={task?.dependencyIds ?? []}
+        >
+          {w.tasks
+            .filter((t) => t.id !== task?.id && !t.deletedAt)
+            .map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+        </select>
+      </label>
+      {task && (
+        <label>
+          {en.tasks.transferReason}
+          <input
+            name="reason"
+            maxLength={2000}
+            placeholder={en.tasks.transferPlaceholder}
+          />
+        </label>
+      )}
+      <div className="form-footer">
+        <Button disabled={busy || !w.projects.some((p) => !p.archived)}>
+          {busy ? en.common.loading : task ? en.common.save : en.common.newTask}
+          <ArrowRight size={15} />
+        </Button>
+      </div>
+    </form>
+  );
+}
+function ProjectForm({
+  w,
+  busy,
+  onSubmit,
+}: {
+  w: Workspace;
+  busy: boolean;
+  onSubmit: (
+    data: Extract<Command, { type: "project.create" }>["data"],
+  ) => Promise<void>;
+}) {
+  return (
+    <form
+      className="editor-form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const f = new FormData(e.currentTarget);
+        await onSubmit({
+          name: String(f.get("name")),
+          code: String(f.get("code")).toUpperCase(),
+          description: String(f.get("description")),
+          color: String(f.get("color")),
+          visibility: String(f.get("visibility")) as "organization" | "private",
+          memberIds: f.getAll("members").map(String),
+        });
+      }}
+    >
+      <label>
+        {en.projects.name}
+        <input name="name" required maxLength={200} />
+      </label>
+      <div className="form-grid">
+        <label>
+          {en.projects.code}
+          <input
+            name="code"
+            required
+            pattern="[A-Za-z][A-Za-z0-9]{1,7}"
+            maxLength={8}
+          />
+        </label>
+        <label>
+          {en.projects.color}
+          <input name="color" type="color" defaultValue="#6b8d79" />
+        </label>
+      </div>
+      <label>
+        {en.projects.description}
+        <textarea name="description" maxLength={5000} />
+      </label>
+      <label>
+        {en.projects.visibility}
+        <select name="visibility">
+          <option value="organization">{en.projects.organization}</option>
+          <option value="private">{en.projects.private}</option>
+        </select>
+      </label>
+      <fieldset>
+        <legend>{en.projects.members}</legend>
+        {w.members.map((m) => (
+          <label className="checkbox-label" key={m.id}>
+            <input
+              name="members"
+              type="checkbox"
+              value={m.id}
+              defaultChecked={m.id === w.currentUserId}
+            />
+            {m.name}
+          </label>
+        ))}
+      </fieldset>
+      <Button disabled={busy}>{en.common.newProject}</Button>
+    </form>
+  );
+}
+function TaskDetail({
+  w,
+  task,
+  send,
+  busy,
+  activity,
+}: {
+  w: Workspace;
+  task: Task;
+  send: Send;
+  busy: boolean;
+  activity: React.ReactNode;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [review, setReview] = useState("");
+  const actor = w.members.find((m) => m.id === w.currentUserId)!;
+  const editable = canEditTask(w, task);
+  return (
+    <div className="detail-body">
+      {editing ? (
+        <TaskForm
+          w={w}
+          task={task}
+          busy={busy}
+          onSubmit={async (data, reason) => {
+            if (
+              await send({
+                type: "task.update",
+                id: task.id,
+                version: task.version,
+                data,
+                reason,
+              })
+            )
+              setEditing(false);
+          }}
+        />
+      ) : (
+        <>
+          <p className="task-description">
+            {task.description || en.tasks.descriptionPlaceholder}
+          </p>
+          <dl className="task-properties">
+            <dt>{en.tasks.status}</dt>
+            <dd>
+              <StatusDot w={w} id={task.statusId} />
+              {w.statuses.find((s) => s.id === task.statusId)?.name}
+            </dd>
+            <dt>{en.tasks.priority}</dt>
+            <dd>
+              <Flag size={14} />
+              {en.priorities[task.priority]}
+            </dd>
+            <dt>{en.tasks.assignee}</dt>
+            <dd>
+              {w.members.find((m) => m.id === task.assigneeId)?.name ??
+                en.common.unassigned}
+            </dd>
+            <dt>{en.tasks.dueDate}</dt>
+            <dd>{formatDate(task.dueDate)}</dd>
+            <dt>{en.tasks.estimate}</dt>
+            <dd>
+              {task.estimatedHours} {en.common.hours}
+            </dd>
+          </dl>
+          {editable && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditing(true)}
+            >
+              {en.common.edit}
+            </Button>
+          )}
+          <div className="detail-section">
+            <h3>{en.tasks.checklist}</h3>
+            {task.checklist.map((item) => (
+              <label className="checklist-item" key={item.id}>
+                <input
+                  type="checkbox"
+                  checked={item.done}
+                  disabled={busy || !editable}
+                  onChange={async (e) => {
+                    await send({
+                      type: "task.update",
+                      id: task.id,
+                      version: task.version,
+                      data: {
+                        checklist: task.checklist.map((c) =>
+                          c.id === item.id
+                            ? { ...c, done: e.target.checked }
+                            : c,
+                        ),
+                      },
+                    });
+                  }}
+                />
+                <span className={item.done ? "checked" : ""}>{item.text}</span>
+              </label>
+            ))}
+            {editable && (
+              <form
+                className="inline-form"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const text = String(new FormData(form).get("text")).trim();
+                  if (
+                    text &&
+                    (await send({
+                      type: "task.update",
+                      id: task.id,
+                      version: task.version,
+                      data: {
+                        checklist: [
+                          ...task.checklist,
+                          { id: crypto.randomUUID(), text, done: false },
+                        ],
+                      },
+                    }))
+                  )
+                    form.reset();
+                }}
+              >
+                <input
+                  name="text"
+                  aria-label={en.tasks.checklistPlaceholder}
+                  placeholder={en.tasks.checklistPlaceholder}
+                  maxLength={200}
+                  required
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  disabled={busy}
+                  aria-label={en.common.add}
+                >
+                  <Plus size={16} />
+                </Button>
+              </form>
+            )}
+          </div>
+          <div className="detail-section">
+            <h3>{en.tasks.subtasks}</h3>
+            {w.tasks
+              .filter((t) => t.parentId === task.id && !t.deletedAt)
+              .map((t) => (
+                <p className="status-label" key={t.id}>
+                  <StatusDot w={w} id={t.statusId} />
+                  {t.title}
+                </p>
+              ))}
+          </div>
+          {editable &&
+            w.statuses.find((s) => s.id === task.statusId)?.category !==
+              "done" && (
+              <div className="review-box">
+                {w.statuses.find((s) => s.id === task.statusId)?.category ===
+                "review" ? (
+                  can(actor.role, "task.review") && (
+                    <>
+                      <label>
+                        {en.tasks.reviewComment}
+                        <textarea
+                          value={review}
+                          onChange={(e) => setReview(e.target.value)}
+                          placeholder={en.tasks.reviewPlaceholder}
+                        />
+                      </label>
+                      <div className="button-row">
+                        <Button
+                          disabled={busy}
+                          onClick={() =>
+                            send({
+                              type: "task.review",
+                              id: task.id,
+                              version: task.version,
+                              approve: true,
+                              comment: review,
+                            })
+                          }
+                        >
+                          <Check size={15} />
+                          {en.tasks.approve}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          disabled={busy || !review.trim()}
+                          onClick={() =>
+                            send({
+                              type: "task.review",
+                              id: task.id,
+                              version: task.version,
+                              approve: false,
+                              comment: review,
+                            })
+                          }
+                        >
+                          {en.tasks.return}
+                        </Button>
+                      </div>
+                    </>
+                  )
+                ) : (
+                  <Button
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => {
+                      const s = w.statuses.find((s) => s.category === "review");
+                      if (s)
+                        void send({
+                          type: "task.update",
+                          id: task.id,
+                          version: task.version,
+                          data: { statusId: s.id },
+                        });
+                    }}
+                  >
+                    {en.tasks.submit}
+                    <ArrowRight size={15} />
+                  </Button>
+                )}
+              </div>
+            )}
+        </>
+      )}
+      <div className="detail-section">
+        <h3>{en.tasks.comments}</h3>
+        {editable && (
+          <form
+            className="editor-form"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const text = String(new FormData(form).get("comment"));
+              if (await send({ type: "task.comment", id: task.id, text }))
+                form.reset();
+            }}
+          >
+            <textarea
+              aria-label={en.tasks.commentPlaceholder}
+              name="comment"
+              maxLength={10000}
+              required
+              placeholder={en.tasks.commentPlaceholder}
+            />
+            <Button size="sm" variant="outline" disabled={busy}>
+              {en.tasks.post}
+            </Button>
+          </form>
+        )}
+        <div className="activity-list">{activity}</div>
+      </div>
+      {can(actor.role, "task.delete") && (
+        <div className="detail-actions">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() =>
+              send({
+                type: "task.archive",
+                id: task.id,
+                archived: !task.archived,
+              })
+            }
+          >
+            {task.archived ? en.common.restore : en.common.archive}
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={busy}
+            onClick={() => {
+              if (window.confirm(en.common.confirmDelete))
+                void send({ type: "task.delete", id: task.id });
+            }}
+          >
+            {en.common.delete}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+function Calendar({
+  tasks,
+  month,
+  setMonth,
+  open,
+}: {
+  tasks: Task[];
+  month: string;
+  setMonth: (m: string) => void;
+  open: (id: string) => void;
+}) {
+  const [y, m] = month.split("-").map(Number);
+  const first = new Date(Date.UTC(y, m - 1, 1));
+  const days = Array.from(
+    { length: 42 },
+    (_, i) => new Date(Date.UTC(y, m - 1, 1 - first.getUTCDay() + i)),
+  );
+  const shift = (n: number) =>
+    setMonth(new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7));
+  return (
+    <div className="calendar">
+      <div className="calendar-heading">
+        <h2>
+          {new Intl.DateTimeFormat("en", {
+            month: "long",
+            year: "numeric",
+            timeZone: "UTC",
+          }).format(first)}
+        </h2>
+        <div>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={en.tasks.previousMonth}
+            onClick={() => shift(-1)}
+          >
+            <ChevronLeft size={16} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={en.tasks.nextMonth}
+            onClick={() => shift(1)}
+          >
+            <ChevronRight size={16} />
+          </Button>
+        </div>
+      </div>
+      <div className="calendar-weekdays">
+        {days.slice(0, 7).map((d) => (
+          <span key={d.toISOString()}>
+            {new Intl.DateTimeFormat("en", {
+              weekday: "short",
+              timeZone: "UTC",
+            }).format(d)}
+          </span>
+        ))}
+      </div>
+      <div className="calendar-grid">
+        {days.map((d) => {
+          const key = d.toISOString().slice(0, 10);
+          return (
+            <div
+              className={d.getUTCMonth() !== m - 1 ? "outside" : ""}
+              key={key}
+            >
+              <time className={key === today() ? "is-today" : ""}>
+                {d.getUTCDate()}
+              </time>
+              {tasks
+                .filter((t) => t.dueDate === key)
+                .map((t) => (
+                  <button key={t.id} onClick={() => open(t.id)}>
+                    {t.title}
+                  </button>
+                ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+function TeamPanel({
+  w,
+  send,
+  busy,
+}: {
+  w: Workspace;
+  send: Send;
+  busy: boolean;
+}) {
+  const [dialog, setDialog] = useState<"member" | "team" | "department" | null>(
+    null,
+  );
+  const actor = w.members.find((m) => m.id === w.currentUserId)!;
+  const manage = can(actor.role, "user.manage");
+  return (
+    <>
+      <Heading title={en.team.title} subtitle={en.team.subtitle}>
+        {manage && (
+          <Button onClick={() => setDialog("member")}>
+            <Plus size={16} />
+            {en.team.addMember}
+          </Button>
+        )}
+      </Heading>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              {[
+                en.team.name,
+                en.team.role,
+                en.team.team,
+                en.team.workload,
+                en.team.capacity,
+              ].map((h) => (
+                <th key={h}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {w.members.map((m) => {
+              const tasks = activeTasks(w).filter(
+                (t) => t.assigneeId === m.id && isOpen(w, t),
+              );
+              return (
+                <tr key={m.id}>
+                  <td>
+                    <div className="person-cell">
+                      <Avatar name={m.name} />
+                      <span>
+                        {m.name}
+                        <small>{m.email}</small>
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    {manage ? (
+                      <select
+                        disabled={busy}
+                        value={m.role}
+                        aria-label={`${en.team.role} ${m.name}`}
+                        onChange={(e) =>
+                          send({
+                            type: "member.update",
+                            id: m.id,
+                            role: e.target.value as Role,
+                            teamId: m.teamId,
+                          })
+                        }
+                      >
+                        {Object.entries(en.team.roles).map(([v, l]) => (
+                          <option key={v} value={v}>
+                            {l}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      en.team.roles[m.role]
+                    )}
+                  </td>
+                  <td>
+                    {manage ? (
+                      <select
+                        disabled={busy}
+                        value={m.teamId ?? ""}
+                        aria-label={`${en.team.team} ${m.name}`}
+                        onChange={(e) =>
+                          send({
+                            type: "member.update",
+                            id: m.id,
+                            role: m.role,
+                            teamId: e.target.value || null,
+                          })
+                        }
+                      >
+                        <option value="">{en.team.noTeam}</option>
+                        {w.teams.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      (w.teams.find((t) => t.id === m.teamId)?.name ??
+                      en.team.noTeam)
+                    )}
+                  </td>
+                  <td>
+                    {tasks.length}
+                    <div className="workload-bar">
+                      <span
+                        style={{
+                          width: `${Math.min((tasks.length / 10) * 100, 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </td>
+                  <td>
+                    {tasks.reduce((s, t) => s + t.estimatedHours, 0)}{" "}
+                    {en.common.hours}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="team-sections">
+        <section>
+          <div className="section-heading">
+            <h2>{en.team.teams}</h2>
+            {manage && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDialog("team")}
+              >
+                <Plus size={14} />
+                {en.team.addTeam}
+              </Button>
+            )}
+          </div>
+          {w.teams.map((t) => (
+            <div className="team-item" key={t.id}>
+              <Users size={18} />
+              <span>
+                {t.name}
+                <small>
+                  {w.departments.find((d) => d.id === t.departmentId)?.name}
+                </small>
+              </span>
+              <b>{w.members.filter((m) => m.teamId === t.id).length}</b>
+            </div>
+          ))}
+        </section>
+        <section>
+          <div className="section-heading">
+            <h2>{en.team.departments}</h2>
+            {manage && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDialog("department")}
+              >
+                <Plus size={14} />
+                {en.team.addDepartment}
+              </Button>
+            )}
+          </div>
+          {w.departments.map((d) => (
+            <div className="team-item" key={d.id}>
+              <Layers size={18} />
+              {d.name}
+            </div>
+          ))}
+        </section>
+      </div>
+      <Dialog open={!!dialog} onOpenChange={(open) => !open && setDialog(null)}>
+        <DialogContent>
+          <DialogTitle>
+            {dialog === "member"
+              ? en.team.addMember
+              : dialog === "team"
+                ? en.team.addTeam
+                : en.team.addDepartment}
+          </DialogTitle>
+          <DialogDescription>
+            {dialog === "member" ? en.team.addMemberNote : en.team.subtitle}
+          </DialogDescription>
+          <form
+            className="editor-form"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              const success =
+                dialog === "member"
+                  ? await send({
+                      type: "member.add",
+                      email: String(f.get("name")),
+                    })
+                  : dialog === "team"
+                    ? await send({
+                        type: "team.create",
+                        name: String(f.get("name")),
+                        departmentId: String(f.get("department")) || null,
+                      })
+                    : await send({
+                        type: "department.create",
+                        name: String(f.get("name")),
+                      });
+              if (success) setDialog(null);
+            }}
+          >
+            <label>
+              {dialog === "member" ? en.team.email : en.team.name}
+              <input
+                name="name"
+                type={dialog === "member" ? "email" : "text"}
+                required
+                maxLength={200}
+              />
+            </label>
+            {dialog === "team" && (
+              <label>
+                {en.team.department}
+                <select name="department">
+                  <option value="">{en.common.none}</option>
+                  {w.departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <Button disabled={busy}>{en.common.add}</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+function ReportPanel({
+  w,
+  month,
+  setMonth,
+}: {
+  w: Workspace;
+  month: string;
+  setMonth: (value: string) => void;
+}) {
+  const report = monthlyReport(w, month);
+  const rows = w.members.map((m) => {
+    const completed = report.completed.filter((t) => t.assigneeId === m.id);
+    return [
+      m.name,
+      completed.length,
+      activeTasks(w).filter((t) => t.assigneeId === m.id && isOpen(w, t))
+        .length,
+      activeTasks(w).filter(
+        (t) =>
+          t.assigneeId === m.id &&
+          isOpen(w, t) &&
+          t.dueDate &&
+          t.dueDate < today(),
+      ).length,
+      completed.filter(
+        (t) => t.dueDate && t.completedAt!.slice(0, 10) <= t.dueDate,
+      ).length,
+    ];
+  });
+  const headers = [
+    en.team.name,
+    en.reports.completedColumn,
+    en.reports.active,
+    en.reports.overdue,
+    en.reports.onTimeColumn,
+  ];
+  return (
+    <>
+      <Heading title={en.reports.title} subtitle={en.reports.subtitle}>
+        <div className="button-row">
+          <input
+            aria-label={en.reports.month}
+            type="month"
+            value={month}
+            onChange={(e) => e.target.value && setMonth(e.target.value)}
+          />
+          <Button
+            variant="outline"
+            onClick={() =>
+              download([headers, ...rows], `tamm-report-${month}.csv`)
+            }
+          >
+            <Download size={15} />
+            {en.common.export}
+          </Button>
+        </div>
+      </Heading>
+      <div className="metrics">
+        {[
+          [en.reports.assigned, report.created],
+          [en.reports.completed, report.completed.length],
+          [
+            en.reports.onTime,
+            report.onTime === null ? "—" : report.onTime + "%",
+          ],
+          [
+            en.reports.cycle,
+            report.cycleDays === null
+              ? "—"
+              : report.cycleDays.toFixed(1) + " " + en.reports.days,
+          ],
+        ].map(([l, v]) => (
+          <div className="metric" key={l}>
+            <span>{l}</span>
+            <strong>{v}</strong>
+          </div>
+        ))}
+      </div>
+      <section className="section">
+        <div className="section-heading">
+          <h2>{en.reports.byPerson}</h2>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                {headers.map((h) => (
+                  <th key={h}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r[0]}>
+                  {r.map((v, i) => (
+                    <td key={i}>{v}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="report-definition">{en.reports.definition}</p>
+      </section>
+    </>
+  );
+}
+function SettingsPanel({
+  w,
+  send,
+  busy,
+  demo,
+}: {
+  w: Workspace;
+  send: Send;
+  busy: boolean;
+  demo: boolean;
+}) {
+  const actor = w.members.find((m) => m.id === w.currentUserId)!;
+  return (
+    <>
+      <Heading title={en.settings.title} subtitle={en.settings.subtitle} />
+      <div className="settings-grid">
+        <section>
+          <h2>{en.settings.workflow}</h2>
+          <div className="workflow-list">
+            {w.statuses.map((s) => (
+              <div key={s.id}>
+                <StatusDot w={w} id={s.id} />
+                <strong>{s.name}</strong>
+                <span>{en.settings.categories[s.category]}</span>
+              </div>
+            ))}
+          </div>
+          {can(actor.role, "workflow.manage") && (
+            <form
+              className="editor-form"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const f = new FormData(form);
+                if (
+                  await send({
+                    type: "workflow.create",
+                    name: String(f.get("name")),
+                    category: String(
+                      f.get("category"),
+                    ) as Workspace["statuses"][number]["category"],
+                    color: String(f.get("color")),
+                  })
+                )
+                  form.reset();
+              }}
+            >
+              <label>
+                {en.settings.statusName}
+                <input name="name" required maxLength={200} />
+              </label>
+              <div className="form-grid">
+                <label>
+                  {en.settings.category}
+                  <select name="category">
+                    {Object.entries(en.settings.categories).map(([v, l]) => (
+                      <option key={v} value={v}>
+                        {l}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {en.projects.color}
+                  <input name="color" type="color" defaultValue="#6b8d79" />
+                </label>
+              </div>
+              <Button variant="outline" disabled={busy}>
+                <Plus size={16} />
+                {en.settings.addStatus}
+              </Button>
+            </form>
+          )}
+        </section>
+        <section>
+          <h2>{en.settings.trash}</h2>
+          {!w.tasks.some((t) => t.deletedAt) && (
+            <p className="muted">{en.settings.trashEmpty}</p>
+          )}
+          {w.tasks
+            .filter((t) => t.deletedAt)
+            .map((t) => (
+              <div className="restore-row" key={t.id}>
+                <span>{t.title}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy || !can(actor.role, "task.delete")}
+                  onClick={() => send({ type: "task.restore", id: t.id })}
+                >
+                  {en.common.restore}
+                </Button>
+              </div>
+            ))}
+          <h2>{en.settings.archived}</h2>
+          {w.tasks
+            .filter((t) => t.archived && !t.deletedAt)
+            .map((t) => (
+              <div className="restore-row" key={t.id}>
+                <span>{t.title}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy || !can(actor.role, "task.delete")}
+                  onClick={() =>
+                    send({ type: "task.archive", id: t.id, archived: false })
+                  }
+                >
+                  {en.common.restore}
+                </Button>
+              </div>
+            ))}
+          {!demo && <AccountSettings />}
+        </section>
+      </div>
+    </>
+  );
+}
+function AccountSettings() {
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <section className="detail-section">
+      <h2>{en.settings.password}</h2>
+      <form
+        className="editor-form"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          const form = e.currentTarget;
+          const f = new FormData(form);
+          try {
+            const result = await authClient.changePassword({
+              currentPassword: String(f.get("currentPassword")),
+              newPassword: String(f.get("newPassword")),
+              revokeOtherSessions: true,
+            });
+            setMessage(
+              result.error ? en.common.error : en.settings.passwordChanged,
+            );
+            if (!result.error) form.reset();
+          } catch {
+            setMessage(en.common.error);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label>
+          {en.settings.currentPassword}
+          <input
+            name="currentPassword"
+            autoComplete="current-password"
+            type="password"
+            required
+          />
+        </label>
+        <label>
+          {en.settings.newPassword}
+          <input
+            name="newPassword"
+            autoComplete="new-password"
+            type="password"
+            minLength={12}
+            required
+          />
+        </label>
+        <Button disabled={busy}>{en.common.save}</Button>
+        <p role="status">{message}</p>
+      </form>
+    </section>
+  );
+}

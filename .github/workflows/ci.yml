@@ -7,16 +7,45 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tamm
+          POSTGRES_PASSWORD: test-only-password
+          POSTGRES_DB: tamm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tamm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ci-only-non-production-secret-at-least-32-characters
+      DATABASE_URL: postgresql://tamm:test-only-password@localhost:5432/tamm
+      ALLOW_REGISTRATION: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - run: npm install
+          node-version: "22"
+          cache: npm
+      - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run db:migrate
       - run: npm run build
-        env:
-          BETTER_AUTH_URL: http://localhost:3000
-          BETTER_AUTH_SECRET: ci-only-non-production-secret-at-least-32-characters
-          DATABASE_URL: postgresql://localhost:5432/tamm
+      - name: Integration against PostgreSQL
+        run: |
+          npm start > /tmp/tamm-server.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://localhost:3000 > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/integration.mjs
+      - name: Server log on failure
+        if: failure()
+        run: cat /tmp/tamm-server.log 2>/dev/null || true
