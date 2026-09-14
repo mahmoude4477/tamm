@@ -11,7 +11,7 @@
 
 Tamm is an open-source task and project workspace for internal teams. Plan work, assign it, track transfers, and review the result in a focused interface. Monthly reports describe delivery and workload without assigning employees an arbitrary score.
 
-**V1 is being finalized in [pull request #2](https://github.com/mahmoude4477/tamm/pull/2).** The public demo uses fictional data. It contains no personal profile, organization credentials, or production records.
+**V1 is ready for review in [pull request #2](https://github.com/mahmoude4477/tamm/pull/2).** The public demo uses fictional data. It contains no personal profile, organization credentials, or production records.
 
 ![Tamm workspace overview with fictional projects and tasks](docs/preview.png)
 
@@ -102,7 +102,7 @@ A checked item means implemented and covered by the release validation. Unchecke
 - [x] Scoped monthly reports, previous-month comparisons, cycle time, reopen/return metrics, and exports.
 - [x] English and Arabic dictionaries, locale fallback, timezone configuration, and RTL layout.
 - [x] Additive migrations, deployment instructions, and backup/restore documentation.
-- [ ] Final browser, accessibility, and PostgreSQL validation of the complete V1 branch.
+- [x] Final browser, accessibility, and PostgreSQL validation of the complete V1 branch.
 
 ## Remaining work
 
@@ -152,11 +152,12 @@ npm run format:check
 npm run build
 # Against a disposable, configured database and a running server:
 node scripts/integration.mjs
+node scripts/auth-integration.mjs
 npx playwright install chromium
-npm run test:e2e
+RUN_AUTH_E2E=true npm run test:e2e
 ```
 
-CI applies migrations to PostgreSQL, builds the application, and exercises HTTP and browser workflows. Integration fixtures use `example.com` accounts and local file email delivery.
+V1 validation passes type checking, 21 domain/localization tests, PostgreSQL migrations and integration flows, the production build, and 4 browser checks covering work management, Arabic/mobile navigation, account/passkey setup, and overview accessibility. CI runs these checks for changes. Integration fixtures use `example.com` accounts and local file email delivery.
 
 The interface follows the principles in [Better UI](https://skills.sh/jakubkrehel/skills/better-ui) and [Emil Design Engineering](https://skills.sh/emilkowalski/skills/emil-design-eng): clear hierarchy, keyboard access, restrained motion, and useful states.
 
