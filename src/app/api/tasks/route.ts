@@ -8,6 +8,7 @@ import {
   desc,
   count,
   lte,
+  getTableColumns,
   inArray,
 } from "drizzle-orm";
 import { z } from "zod";
@@ -150,7 +151,7 @@ export async function GET(request: Request) {
     // Rank within each visible status: one bounded board response instead of a request per column.
     const ranked = db
       .select({
-        task: s.tasks,
+        task: { ...getTableColumns(s.tasks) },
         position:
           sql<number>`row_number() over(partition by ${s.tasks.statusId} order by ${order}, ${s.tasks.id} asc)`.as(
             "position",
