@@ -250,7 +250,7 @@ export function PlanningPanel({
                           (t) =>
                             t.projectId === project &&
                             !t.deletedAt &&
-                            !data.milestones.some(
+                            !data?.milestones.some(
                               (m) =>
                                 m.id !== editing?.id &&
                                 m.taskIds.includes(t.id),
