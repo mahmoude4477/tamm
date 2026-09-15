@@ -1,13 +1,15 @@
 "use client";
+import { TransferPanel } from "./operations-panel";
+import Markdown from "react-markdown";
+import { CommentPanel, FilePanel } from "./collaboration-panel";
 import { Button } from "@/components/ui/button";
 import { type Command } from "@/lib/commands";
 import { can, canEditTask } from "@/lib/permissions";
 import type { Task, Workspace } from "@/lib/types";
-import en from "@/messages/en.json";
+import { useMessages, useDates } from "@/components/locale-provider";
 import { ArrowRight, Check, Flag, Plus } from "lucide-react";
 import { useState } from "react";
 
-import { formatDate } from "@/lib/dates";
 import { StatusDot } from "./workspace-shared";
 export type Send = (
   command: Command | { type: "member.add"; email: string },
@@ -26,6 +28,9 @@ export function TaskForm({
   busy: boolean;
   onSubmit: (data: TaskData, reason?: string) => Promise<void>;
 }) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   return (
     <form
       className="editor-form"
@@ -50,6 +55,11 @@ export function TaskForm({
               .map((t) => t.trim())
               .filter(Boolean),
             checklist: task?.checklist ?? [],
+            assigneeIds: f.getAll("assigneeIds").map(String),
+            relatedIds: f.getAll("relatedIds").map(String),
+            duplicateOfId: String(f.get("duplicateOfId")) || null,
+            taskType: String(f.get("taskType")),
+            actualHours: Number(f.get("actualHours")),
           },
           String(f.get("reason")),
         );
@@ -211,6 +221,74 @@ export function TaskForm({
           />
         </label>
       )}
+      <div className="form-grid">
+        <label>
+          {en.collaboration.taskType}
+          <select name="taskType" defaultValue={task?.taskType ?? "task"}>
+            {(w.settings?.taskTypes ?? ["task", "bug", "request"]).map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {en.collaboration.actualHours}
+          <input
+            type="number"
+            name="actualHours"
+            min="0"
+            max="100000"
+            step="0.25"
+            defaultValue={task?.actualHours ?? 0}
+          />
+        </label>
+      </div>
+      <label>
+        {en.collaboration.assignees}
+        <select
+          multiple
+          name="assigneeIds"
+          defaultValue={task?.assigneeIds ?? []}
+        >
+          {w.members
+            .filter((m) => m.active !== false)
+            .map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+        </select>
+      </label>
+      <label>
+        {en.collaboration.related}
+        <select
+          multiple
+          name="relatedIds"
+          defaultValue={task?.relatedIds ?? []}
+        >
+          {w.tasks
+            .filter((t) => t.id !== task?.id && !t.deletedAt)
+            .map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+        </select>
+      </label>
+      <label>
+        {en.collaboration.duplicate}
+        <select name="duplicateOfId" defaultValue={task?.duplicateOfId ?? ""}>
+          <option value="">{en.collaboration.none}</option>
+          {w.tasks
+            .filter((t) => t.id !== task?.id && !t.deletedAt)
+            .map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+        </select>
+      </label>
       <div className="form-footer">
         <Button disabled={busy || !w.projects.some((p) => !p.archived)}>
           {busy ? en.common.loading : task ? en.common.save : en.common.newTask}
@@ -231,6 +309,9 @@ export function ProjectForm({
     data: Extract<Command, { type: "project.create" }>["data"],
   ) => Promise<void>;
 }) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   return (
     <form
       className="editor-form"
@@ -300,14 +381,19 @@ export function TaskDetail({
   task,
   send,
   busy,
+  demo = false,
   activity,
 }: {
   w: Workspace;
   task: Task;
   send: Send;
   busy: boolean;
+  demo?: boolean;
   activity: React.ReactNode;
 }) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const [editing, setEditing] = useState(false);
   const [review, setReview] = useState("");
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
@@ -334,9 +420,11 @@ export function TaskDetail({
         />
       ) : (
         <>
-          <p className="task-description">
-            {task.description || en.tasks.descriptionPlaceholder}
-          </p>
+          <div className="task-description markdown">
+            <Markdown skipHtml>
+              {task.description || en.tasks.descriptionPlaceholder}
+            </Markdown>
+          </div>
           <dl className="task-properties">
             <dt>{en.tasks.status}</dt>
             <dd>
@@ -448,13 +536,16 @@ export function TaskDetail({
                 </p>
               ))}
           </div>
-          {editable &&
+          {(editable ||
+            (can(actor.role, "task.review", actor.permissions) &&
+              w.statuses.find((s) => s.id === task.statusId)?.category ===
+                "review")) &&
             w.statuses.find((s) => s.id === task.statusId)?.category !==
               "done" && (
               <div className="review-box">
                 {w.statuses.find((s) => s.id === task.statusId)?.category ===
                 "review" ? (
-                  can(actor.role, "task.review") && (
+                  can(actor.role, "task.review", actor.permissions) && (
                     <>
                       <label>
                         {en.tasks.reviewComment}
@@ -521,34 +612,16 @@ export function TaskDetail({
             )}
         </>
       )}
+      <CommentPanel w={w} task={task} send={send} busy={busy} />
+      {!demo && w.settings?.transferPolicy === "approval" && (
+        <TransferPanel w={w} task={task} />
+      )}
+      <FilePanel w={w} taskId={task.id} demo={demo} />
       <div className="detail-section">
-        <h3>{en.tasks.comments}</h3>
-        {editable && (
-          <form
-            className="editor-form"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const form = e.currentTarget;
-              const text = String(new FormData(form).get("comment"));
-              if (await send({ type: "task.comment", id: task.id, text }))
-                form.reset();
-            }}
-          >
-            <textarea
-              aria-label={en.tasks.commentPlaceholder}
-              name="comment"
-              maxLength={10000}
-              required
-              placeholder={en.tasks.commentPlaceholder}
-            />
-            <Button size="sm" variant="outline" disabled={busy}>
-              {en.tasks.post}
-            </Button>
-          </form>
-        )}
+        <h3>{en.nav.activity}</h3>
         <div className="activity-list">{activity}</div>
       </div>
-      {can(actor.role, "task.delete") && (
+      {can(actor.role, "task.delete", actor.permissions) && (
         <div className="detail-actions">
           <Button
             variant="ghost"

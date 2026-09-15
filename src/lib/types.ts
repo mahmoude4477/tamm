@@ -4,6 +4,7 @@ export type Status = {
   name: string;
   category: "open" | "active" | "review" | "done" | "cancelled";
   color: string;
+  allowedNextIds?: string[];
 };
 export type Person = {
   id: string;
@@ -11,6 +12,12 @@ export type Person = {
   email: string;
   role: Role;
   teamId: string | null;
+  teamIds?: string[];
+  jobTitle?: string;
+  active?: boolean;
+  customRoleId?: string | null;
+  permissions?: string[];
+  image?: string | null;
 };
 export type Project = {
   id: string;
@@ -21,6 +28,13 @@ export type Project = {
   archived: boolean;
   visibility: "organization" | "private";
   memberIds: string[];
+  ownerId?: string | null;
+  managerId?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  priority?: Task["priority"];
+  lifecycle?: "planned" | "active" | "on_hold" | "completed";
+  deletedAt?: string | null;
 };
 export type Task = {
   id: string;
@@ -45,18 +59,32 @@ export type Task = {
   archived: boolean;
   deletedAt: string | null;
   version: number;
+  assigneeIds?: string[];
+  watcherIds?: string[];
+  relatedIds?: string[];
+  duplicateOfId?: string | null;
+  taskType?: string;
+  actualHours?: number;
 };
 export type Event = {
+  projectId?: string | null;
+  previousStatusId?: string | null;
+  newStatusId?: string | null;
   id: string;
   taskId: string | null;
   actorId: string;
   action: string;
   text: string;
   createdAt: string;
+  parentEventId?: string | null;
+  mentionedIds?: string[];
+  editedAt?: string | null;
+  deletedAt?: string | null;
   previousAssigneeId?: string | null;
   newAssigneeId?: string | null;
 };
 export type Workspace = {
+  attachmentTaskIds?: string[];
   id: string;
   name: string;
   currentUserId: string;
@@ -65,6 +93,38 @@ export type Workspace = {
   tasks: Task[];
   statuses: Status[];
   events: Event[];
-  teams: { id: string; name: string; departmentId: string | null }[];
-  departments: { id: string; name: string }[];
+  teams: {
+    id: string;
+    name: string;
+    departmentId: string | null;
+    managerId?: string | null;
+  }[];
+  departments: { id: string; name: string; managerId?: string | null }[];
+  customRoles?: { id: string; name: string; permissions: string[] }[];
+  settings?: WorkspaceSettings;
+};
+
+export type WorkspaceSettings = {
+  transferPolicy: "team" | "manager" | "approval";
+  timezone: string;
+  taskTypes: string[];
+};
+export type Attachment = {
+  id: string;
+  taskId: string | null;
+  projectId: string | null;
+  name: string;
+  size: number;
+  mime: string;
+  uploadedBy: string;
+  createdAt: string;
+};
+export type Notification = {
+  id: string;
+  taskId: string | null;
+  kind: string;
+  actorName: string;
+  taskTitle: string;
+  readAt: string | null;
+  createdAt: string;
 };

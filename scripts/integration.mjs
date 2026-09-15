@@ -1,3 +1,4 @@
+import { testFetch as fetch } from "./test-http.mjs";
 import assert from "node:assert/strict";
 const base = "http://localhost:3000";
 async function signup(name, email) {
@@ -132,4 +133,289 @@ const badOrigin = await fetch(base + "/api/workspace", {
 assert.equal(badOrigin.status, 403);
 console.log(
   "Integration passed: account/session, relational persistence, authorization, stale writes, review, private visibility, isolation, and origin checks.",
+);
+
+// V1 collaboration, organization and account paths use the same live database.
+async function api(
+  cookie,
+  path,
+  { body, method = body ? "POST" : "GET", expected = 200 } = {},
+) {
+  const r = await fetch(base + path, {
+    method,
+    headers: {
+      Cookie: cookie,
+      Origin: base,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await r
+    .clone()
+    .json()
+    .catch(() => null);
+  assert.equal(r.status, expected, JSON.stringify(payload));
+  return { payload, response: r };
+}
+const workspaceId = w.id,
+  memberId = w.members.find((m) => m.email === "member@example.com").id;
+w = await command(member, {
+  type: "task.comment",
+  id: task.id,
+  text: "A comment with **formatting**",
+  mentionedIds: [w.currentUserId],
+});
+const comment = w.events.at(-1);
+await command(member, {
+  type: "comment.edit",
+  id: comment.id,
+  text: "Revised comment",
+});
+await api(outsider, `/api/files?workspaceId=${workspaceId}&taskId=${task.id}`, {
+  expected: 403,
+});
+const form = new FormData();
+form.set("taskId", task.id);
+form.set(
+  "file",
+  new Blob(["example attachment"], { type: "text/plain" }),
+  "example.txt",
+);
+const upload = await fetch(`${base}/api/files?workspaceId=${workspaceId}`, {
+  method: "POST",
+  headers: { Cookie: member, Origin: base },
+  body: form,
+});
+assert.equal(upload.status, 200, await upload.clone().text());
+const fileId = (await upload.json()).id;
+const downloaded = await api(
+  member,
+  `/api/files?workspaceId=${workspaceId}&id=${fileId}`,
+);
+assert.equal(await downloaded.response.text(), "example attachment");
+await api(outsider, `/api/files?workspaceId=${workspaceId}&id=${fileId}`, {
+  expected: 403,
+});
+await api(member, `/api/audit?workspaceId=${workspaceId}`, { expected: 403 });
+const audit = await api(owner, `/api/audit?workspaceId=${workspaceId}`);
+assert.ok(audit.payload.items.length);
+const inbox = await api(owner, `/api/notifications?workspaceId=${workspaceId}`);
+assert.ok(inbox.payload.items.some((n) => n.kind === "mention"));
+await api(owner, `/api/notifications?workspaceId=${workspaceId}`, {
+  body: { type: "read" },
+});
+await api(member, `/api/views?workspaceId=${workspaceId}`, {
+  body: { name: "My overdue", filters: { overdue: true } },
+});
+const saved = await api(member, `/api/views?workspaceId=${workspaceId}`);
+assert.equal(saved.payload.items.length, 1);
+const ownerViews = await api(owner, `/api/views?workspaceId=${workspaceId}`);
+assert.equal(ownerViews.payload.items.length, 0);
+const invite = await api(owner, "/api/auth/organization/invite-member", {
+  body: {
+    email: "outsider@example.com",
+    role: "member",
+    organizationId: workspaceId,
+  },
+});
+await api(outsider, "/api/auth/organization/accept-invitation", {
+  body: { invitationId: invite.payload.id },
+});
+const joined = await api(outsider, `/api/workspace?workspaceId=${workspaceId}`);
+assert.equal(joined.payload.workspace.id, workspaceId);
+await command(owner, {
+  type: "member.update",
+  id: memberId,
+  role: "member",
+  teamId: null,
+  active: false,
+});
+await api(member, `/api/workspace?workspaceId=${workspaceId}`).then((r) =>
+  assert.equal(r.payload.workspace, null),
+);
+await api(member, `/api/files?workspaceId=${workspaceId}&id=${fileId}`, {
+  expected: 403,
+});
+await command(owner, {
+  type: "member.update",
+  id: memberId,
+  role: "member",
+  teamId: null,
+  active: true,
+});
+await api(member, "/api/auth/update-user", {
+  body: { name: "Updated Example" },
+});
+const sessions = await api(member, "/api/auth/list-sessions");
+assert.ok(sessions.payload.length > 0);
+const passkey = await api(
+  member,
+  "/api/auth/passkey/generate-register-options",
+);
+assert.ok(passkey.payload.challenge);
+// Capture reset mail locally; integration tests never send external messages.
+await api(outsider, "/api/auth/request-password-reset", {
+  body: { email: "outsider@example.com", redirectTo: "/reset-password" },
+});
+const { readdir, readFile } = await import("node:fs/promises");
+const mailDirectory = process.env.MAIL_DIRECTORY;
+assert.ok(mailDirectory);
+const letters = await Promise.all(
+  (await readdir(mailDirectory)).map(async (name) =>
+    JSON.parse(await readFile(`${mailDirectory}/${name}`, "utf8")),
+  ),
+);
+const reset = letters.find(
+  (m) =>
+    m.to === "outsider@example.com" && m.subject === "Reset your Tamm password",
+);
+assert.ok(reset);
+const resetURL = new URL(reset.text.match(/https?:\/\/\S+/)[0]);
+// Better Auth issues an intermediate URL which redirects to the application.
+const redirect = await fetch(resetURL, { redirect: "manual" });
+const target = new URL(redirect.headers.get("location"), base);
+const token = target.searchParams.get("token");
+assert.ok(token);
+await api(outsider, "/api/auth/reset-password", {
+  body: { token, newPassword: "replacement-test-password-59Vx!" },
+});
+console.log(
+  "V1 integration passed: comments, scoped files, audit access, notifications, saved views, invitations, deactivation, profile, sessions, passkey options and password recovery.",
+);
+
+const currentOwner = (
+  await api(owner, `/api/workspace?workspaceId=${workspaceId}`)
+).payload.workspace;
+const pageOne = await api(
+  owner,
+  `/api/tasks?workspaceId=${workspaceId}&size=1&page=0`,
+);
+assert.equal(pageOne.payload.items.length, 1);
+assert.ok(pageOne.payload.total >= 1);
+const limited = await api(
+  member,
+  `/api/tasks?workspaceId=${workspaceId}&size=100`,
+);
+assert.ok(limited.payload.items.every((t) => t.projectId === projectId));
+await api(owner, "/api/auth/organization/update-member-role", {
+  body: {
+    organizationId: workspaceId,
+    memberId: (
+      await api(
+        owner,
+        `/api/auth/organization/list-members?organizationId=${workspaceId}`,
+      )
+    ).payload.members.find((m) => m.userId === memberId).id,
+    role: "admin",
+  },
+  expected: 400,
+});
+await api(owner, `/api/templates?workspaceId=${workspaceId}`, {
+  body: { type: "save", name: "Review template", taskId: task.id },
+});
+const templates = (
+  await api(owner, `/api/templates?workspaceId=${workspaceId}`)
+).payload.items;
+const applied = await api(owner, `/api/templates?workspaceId=${workspaceId}`, {
+  body: { type: "apply", id: templates[0].id, projectId },
+});
+assert.ok(applied.payload.workspace.tasks.length > currentOwner.tasks.length);
+const { default: pg } = await import("pg");
+const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+await client.connect();
+try {
+  const expired = await api(owner, "/api/auth/organization/invite-member", {
+    body: {
+      email: "expiry@example.com",
+      role: "member",
+      organizationId: workspaceId,
+    },
+  });
+  const expiredUser = await signup("Expiry Example", "expiry@example.com");
+  await client.query(
+    "UPDATE invitation SET expires_at=now()-interval '1 day' WHERE id=$1",
+    [expired.payload.id],
+  );
+  const r = await fetch(base + "/api/auth/organization/accept-invitation", {
+    method: "POST",
+    headers: {
+      Cookie: expiredUser,
+      Origin: base,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ invitationId: expired.payload.id }),
+  });
+  assert.ok(r.status >= 400);
+  const cancelled = await api(owner, "/api/auth/organization/invite-member", {
+    body: {
+      email: "cancel@example.com",
+      role: "member",
+      organizationId: workspaceId,
+    },
+  });
+  await api(owner, "/api/auth/organization/cancel-invitation", {
+    body: { invitationId: cancelled.payload.id },
+  });
+  const row = await client.query("SELECT status FROM invitation WHERE id=$1", [
+    cancelled.payload.id,
+  ]);
+  assert.equal(row.rows[0].status, "canceled");
+} finally {
+  await client.end();
+}
+console.log(
+  "V1 integration passed: paginated visibility, canonical role changes, template application, invitation expiry and revocation.",
+);
+
+// Delegated administrators cannot use invitations to exceed their own grants.
+await api(member, "/api/auth/organization/invite-member", {
+  body: {
+    email: "denied@example.com",
+    role: "viewer",
+    organizationId: workspaceId,
+  },
+  expected: 403,
+});
+const delegated = await command(owner, {
+  type: "role.save",
+  name: "Invitation coordinator",
+  permissions: ["user.manage"],
+});
+const coordinator = delegated.customRoles.find(
+  (r) => r.name === "Invitation coordinator",
+);
+await command(owner, {
+  type: "member.update",
+  id: memberId,
+  role: "member",
+  teamId: null,
+  customRoleId: coordinator.id,
+});
+const viewerInvite = await api(member, "/api/auth/organization/invite-member", {
+  body: {
+    email: "delegated@example.com",
+    role: "viewer",
+    organizationId: workspaceId,
+  },
+});
+await api(member, "/api/auth/organization/cancel-invitation", {
+  body: { invitationId: viewerInvite.payload.id },
+});
+await api(member, "/api/auth/organization/invite-member", {
+  body: {
+    email: "escalation@example.com",
+    role: "admin",
+    organizationId: workspaceId,
+  },
+  expected: 403,
+});
+await command(owner, {
+  type: "member.update",
+  id: memberId,
+  role: "member",
+  teamId: null,
+  customRoleId: null,
+});
+console.log(
+  "Delegated invitation permissions and privilege boundaries passed.",
 );

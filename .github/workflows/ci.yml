@@ -26,6 +26,9 @@ jobs:
       BETTER_AUTH_SECRET: ci-only-non-production-secret-at-least-32-characters
       DATABASE_URL: postgresql://tamm:test-only-password@localhost:5432/tamm
       ALLOW_REGISTRATION: "true"
+      MAIL_TRANSPORT: "file"
+      ALLOW_FILE_MAIL: "true"
+      MAIL_DIRECTORY: /tmp/tamm-test-mail
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +49,13 @@ jobs:
             sleep 1
           done
           node scripts/integration.mjs
+          node scripts/auth-integration.mjs
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser workflows
+        run: npm run test:e2e
+        env:
+          RUN_AUTH_E2E: "true"
       - name: Server log on failure
         if: failure()
         run: cat /tmp/tamm-server.log 2>/dev/null || true

@@ -1,4 +1,14 @@
 "use client";
+import { LocalePicker, useLocale } from "./locale-provider";
+import { ManagerPanel } from "./manager-panel";
+import { TaskCalendar } from "./task-calendar";
+import { ReportingPanel } from "./reporting-panel";
+import { AdvancedFilters } from "./advanced-filters";
+import { matchesFilters, type TaskFilters } from "@/lib/task-filters";
+import { TaskTable } from "./task-table";
+import { WorkspaceSwitcher } from "./organization-panel";
+import { AdminPanel } from "./admin-panel";
+import { Inbox } from "./collaboration-panel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +22,7 @@ import { createDemo } from "@/lib/demo";
 import { can, canEditTask } from "@/lib/permissions";
 import { activeTasks, isDone, isOpen } from "@/lib/reports";
 import type { Task, Workspace } from "@/lib/types";
-import en from "@/messages/en.json";
+import { useMessages, useDates } from "@/components/locale-provider";
 import {
   Activity,
   ArrowRight,
@@ -44,7 +54,6 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { formatDate, today } from "@/lib/dates";
 import { ProjectForm, TaskDetail, TaskForm } from "./task-editor";
 import {
   Calendar,
@@ -61,6 +70,8 @@ import {
   StatusDot,
 } from "./workspace-shared";
 type Page =
+  | "tasks"
+  | "manager"
   | "overview"
   | "myTasks"
   | "projects"
@@ -71,20 +82,87 @@ type Page =
 const nav = [
   ["overview", LayoutDashboard],
   ["myTasks", CircleCheck],
+  ["tasks", List],
   ["projects", Layers],
   ["team", Users],
+  ["manager", Users],
   ["reports", ChartNoAxesCombined],
   ["activity", Activity],
 ] as const;
-export function TammApp({ demo = false }: { demo?: boolean }) {
+export function TammApp({
+  demo = false,
+  initialPage = "overview",
+}: {
+  demo?: boolean;
+  initialPage?: Page;
+}) {
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
+  const { setTimezone, locale, timezone } = useLocale();
   const [w, setW] = useState<Workspace | null>(null);
-  const [page, setPage] = useState<Page>("overview");
+  useEffect(() => {
+    setTimezone(w?.settings?.timezone ?? "UTC");
+  }, [w?.settings?.timezone, setTimezone]);
+  const [myScope, setMyScope] = useState<
+    | "assigned"
+    | "today"
+    | "upcoming"
+    | "overdue"
+    | "created"
+    | "review"
+    | "completed"
+  >("assigned");
+  const [page, setPage] = useState<Page>(initialPage);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [view, setView] = useState<"board" | "list" | "calendar">("board");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
   const [assignee, setAssignee] = useState("");
+  const [advanced, setAdvanced] = useState<TaskFilters>({});
+  function applyFilters(v: TaskFilters) {
+    const { status, priority, assignee, project, search, ...remaining } = v;
+    setAdvanced(remaining);
+    setStatus(status ?? "");
+    setPriority(priority ?? "");
+    setAssignee(assignee ?? "");
+    setProjectId(project || null);
+    setSearch(search ?? "");
+  }
+  useEffect(() => {
+    try {
+      const raw = new URLSearchParams(window.location.search).get("filters");
+      if (raw) {
+        setPage("tasks");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+          applyFilters(
+            Object.fromEntries(
+              Object.entries(parsed).filter(
+                ([k, v]) =>
+                  ([
+                    "team",
+                    "department",
+                    "creator",
+                    "tag",
+                    "from",
+                    "to",
+                    "project",
+                    "status",
+                    "priority",
+                    "assignee",
+                    "search",
+                  ].includes(k) &&
+                    typeof v === "string") ||
+                  (["overdue", "dependency", "attachment"].includes(k) &&
+                    typeof v === "boolean"),
+              ),
+            ),
+          );
+      }
+    } catch {}
+  }, []);
   const [filter, setFilter] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [taskId, setTaskId] = useState<string | null>(null);
@@ -101,7 +179,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
   workspaceRef.current = w;
   useEffect(() => {
     if (demo) {
-      setW(createDemo());
+      setW(createDemo(en));
       setLoaded(true);
       return;
     }
@@ -121,6 +199,19 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
         setLoaded(true);
       });
   }, [demo]);
+  useEffect(() => {
+    if (demo) return;
+    const reload = () => {
+      const current = workspaceRef.current;
+      if (current)
+        fetch(`/api/workspace?workspaceId=${encodeURIComponent(current.id)}`)
+          .then((r) => (r.ok ? r.json() : Promise.reject()))
+          .then((data) => setW(data.workspace))
+          .catch(() => setError(en.common.error));
+    };
+    window.addEventListener("tamm:refresh", reload);
+    return () => window.removeEventListener("tamm:refresh", reload);
+  }, [demo, en.common.error]);
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -150,7 +241,12 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
       } else {
         const r = await fetch("/api/workspace", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(workspaceRef.current
+              ? { "x-workspace-id": workspaceRef.current.id }
+              : {}),
+          },
           body: JSON.stringify(command),
         });
         const data = await r.json();
@@ -182,7 +278,28 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
   const filtered = tasks.filter(
     (t) =>
       (!projectId || t.projectId === projectId) &&
-      (page !== "myTasks" || t.assigneeId === w?.currentUserId) &&
+      (!w || matchesFilters(w, t, advanced, today())) &&
+      (page !== "myTasks" ||
+        (myScope === "created"
+          ? t.reporterId === w?.currentUserId
+          : [t.assigneeId, ...(t.assigneeIds ?? [])].includes(
+              w?.currentUserId ?? "",
+            ) &&
+            (myScope === "today"
+              ? t.dueDate === today()
+              : myScope === "upcoming"
+                ? !!t.dueDate && t.dueDate > today() && isOpen(w!, t)
+                : myScope === "overdue"
+                  ? !!t.dueDate && t.dueDate < today() && isOpen(w!, t)
+                  : myScope === "review"
+                    ? w?.statuses.find((s) => s.id === t.statusId)?.category ===
+                      "review"
+                    : myScope === "completed"
+                      ? !!t.completedAt &&
+                        Date.parse(t.completedAt) >
+                          Date.now() - 30 * 86400000 &&
+                        isDone(w!, t)
+                      : true))) &&
       (!status || t.statusId === status) &&
       (!priority || t.priority === priority) &&
       (!assignee || t.assigneeId === assignee) &&
@@ -343,6 +460,14 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
               </button>
             )}
             {e.text && <p className="muted">{e.text}</p>}
+            {e.previousStatusId &&
+              e.newStatusId &&
+              e.previousStatusId !== e.newStatusId && (
+                <p className="muted">
+                  {w.statuses.find((s) => s.id === e.previousStatusId)?.name} →{" "}
+                  {w.statuses.find((s) => s.id === e.newStatusId)?.name}
+                </p>
+              )}
             <time>{formatDate(e.createdAt)}</time>
           </div>
         </div>
@@ -364,16 +489,22 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
             <small>{demo ? en.nav.demo : en.nav.live}</small>
           </span>
         </div>
+        {!demo && <WorkspaceSwitcher w={w} />}
         <button className="sidebar-search" onClick={() => setCommandOpen(true)}>
           <Search size={15} />
           {en.common.searchShort}
           <kbd>⌘ K</kbd>
         </button>
+        {!demo && <Inbox w={w} onTask={setTaskId} />}
         <span className="nav-caption">{en.nav.workspace}</span>
         <nav>
           {nav
             .filter(
-              ([key]) => key !== "reports" || can(person!.role, "report.view"),
+              ([key]) =>
+                (key !== "reports" ||
+                  can(person!.role, "report.view", person!.permissions)) &&
+                (key !== "manager" ||
+                  can(person!.role, "task.review", person!.permissions)),
             )
             .map(([key, Icon]) => (
               <button
@@ -397,7 +528,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
         </nav>
         <div className="nav-caption project-caption">
           {en.nav.favorites}
-          {can(person!.role, "project.manage") && (
+          {can(person!.role, "project.manage", person!.permissions) && (
             <button
               aria-label={en.common.newProject}
               onClick={() => setCreateProject(true)}
@@ -408,7 +539,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
         </div>
         <nav>
           {w.projects
-            .filter((p) => !p.archived)
+            .filter((p) => !p.archived && !p.deletedAt)
             .map((p) => (
               <button
                 className={projectId === p.id ? "active" : ""}
@@ -421,6 +552,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
             ))}
         </nav>
         <div className="sidebar-bottom">
+          <LocalePicker />
           {demo && (
             <div className="demo-note">
               <span>{en.nav.demo}</span>
@@ -449,7 +581,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
             </a>
           </nav>
           <div className="profile">
-            <Avatar name={person!.name} />
+            <Avatar name={person!.name} image={person!.image} />
             <span>
               {person!.name}
               <small>{en.team.roles[person!.role]}</small>
@@ -489,7 +621,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
           <strong>{project?.name ?? en.nav[page]}</strong>
           <div className="topbar-end">
             <span className="today">
-              {new Intl.DateTimeFormat("en", {
+              {new Intl.DateTimeFormat(locale, {
                 weekday: "short",
                 month: "short",
                 day: "numeric",
@@ -502,7 +634,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
             >
               <Search size={18} />
             </button>
-            <Avatar name={person!.name} size="small" />
+            <Avatar name={person!.name} image={person!.image} size="small" />
           </div>
         </header>
         <main className="main-content">
@@ -515,7 +647,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
                   <h1>{en.overview.title}</h1>
                   <p>{en.overview.subtitle}</p>
                 </div>
-                {can(person!.role, "task.create") && (
+                {can(person!.role, "task.create", person!.permissions) && (
                   <Button onClick={() => setCreateTask(true)}>
                     <Plus size={16} />
                     {en.common.newTask}
@@ -607,7 +739,9 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
                   </Button>
                 </div>
                 <div className="project-grid">
-                  {w.projects.filter((p) => !p.archived).map(projectCard)}
+                  {w.projects
+                    .filter((p) => !p.archived && !p.deletedAt)
+                    .map(projectCard)}
                 </div>
               </section>
               <section className="section">
@@ -628,14 +762,18 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
               >
                 <Button
                   onClick={() => setCreateProject(true)}
-                  disabled={!can(person!.role, "project.manage")}
+                  disabled={
+                    !can(person!.role, "project.manage", person!.permissions)
+                  }
                 >
                   <Plus size={16} />
                   {en.common.newProject}
                 </Button>
               </Heading>
               <div className="project-grid">
-                {w.projects.filter((p) => !p.archived).map(projectCard)}
+                {w.projects
+                  .filter((p) => !p.archived && !p.deletedAt)
+                  .map(projectCard)}
               </div>
               {!w.projects.length && (
                 <Empty
@@ -645,19 +783,40 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
               )}
             </>
           )}
-          {(page === "myTasks" || projectId) && (
+          {(page === "tasks" || page === "myTasks" || projectId) && (
             <>
               <Heading
-                title={project?.name ?? en.tasks.myTitle}
-                subtitle={project?.description ?? en.tasks.mySubtitle}
+                title={
+                  project?.name ??
+                  (page === "tasks" ? en.tasks.title : en.tasks.myTitle)
+                }
+                subtitle={
+                  project?.description ??
+                  (page === "tasks" ? en.tasks.subtitle : en.tasks.mySubtitle)
+                }
               >
-                {can(person!.role, "task.create") && (
+                {can(person!.role, "task.create", person!.permissions) && (
                   <Button onClick={() => setCreateTask(true)}>
                     <Plus size={16} />
                     {en.common.newTask}
                   </Button>
                 )}
               </Heading>
+              {page === "myTasks" && (
+                <div className="scope-tabs">
+                  {Object.entries(en.myTasks).map(([id, label]) => (
+                    <Button
+                      key={id}
+                      variant={myScope === id ? "default" : "ghost"}
+                      size="sm"
+                      aria-pressed={myScope === id}
+                      onClick={() => setMyScope(id as typeof myScope)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              )}
               <div className="view-toolbar">
                 <div className="view-tabs">
                   {(
@@ -705,6 +864,19 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
                   </Button>
                 </div>
               </div>
+              <AdvancedFilters
+                w={w}
+                value={{
+                  ...advanced,
+                  status,
+                  priority,
+                  assignee,
+                  project: projectId ?? "",
+                  search,
+                }}
+                onChange={applyFilters}
+                demo={demo}
+              />
               {filter && (
                 <div className="filters">
                   <select
@@ -753,6 +925,7 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
                     variant="ghost"
                     size="sm"
                     onClick={() => {
+                      setAdvanced({});
                       setStatus("");
                       setPriority("");
                       setAssignee("");
@@ -873,119 +1046,30 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
                 </div>
               )}
               {view === "list" && (
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th />
-                        <th>{en.tasks.titleLabel}</th>
-                        <th>{en.tasks.status}</th>
-                        <th>{en.tasks.priority}</th>
-                        <th>{en.tasks.assignee}</th>
-                        <th>{en.tasks.dueDate}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered.map((t) => (
-                        <tr key={t.id}>
-                          <td>
-                            <input
-                              type="checkbox"
-                              aria-label={`${en.common.select} ${t.title}`}
-                              checked={selected.includes(t.id)}
-                              onChange={(e) =>
-                                setSelected(
-                                  e.target.checked
-                                    ? [...selected, t.id]
-                                    : selected.filter((id) => id !== t.id),
-                                )
-                              }
-                            />
-                          </td>
-                          <td>
-                            <button
-                              className="table-task"
-                              onClick={() => setTaskId(t.id)}
-                            >
-                              <small>
-                                {
-                                  w.projects.find((p) => p.id === t.projectId)
-                                    ?.code
-                                }
-                                -{t.number}
-                              </small>
-                              {t.title}
-                            </button>
-                          </td>
-                          <td>
-                            <span className="status-label">
-                              <StatusDot w={w} id={t.statusId} />
-                              {
-                                w.statuses.find((s) => s.id === t.statusId)
-                                  ?.name
-                              }
-                            </span>
-                          </td>
-                          <td>
-                            <span className={`priority priority-${t.priority}`}>
-                              {en.priorities[t.priority]}
-                            </span>
-                          </td>
-                          <td>
-                            {w.members.find((m) => m.id === t.assigneeId)
-                              ?.name ?? en.common.unassigned}
-                          </td>
-                          <td>{formatDate(t.dueDate)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {selected.length > 0 && (
-                    <div className="bulk-bar">
-                      <b>
-                        {selected.length} {en.tasks.selected}
-                      </b>
-                      <select
-                        aria-label={en.tasks.bulkStatus}
-                        defaultValue=""
-                        onChange={async (e) => {
-                          const statusId = e.target.value;
-                          for (const id of selected) {
-                            const t = w.tasks.find((t) => t.id === id)!;
-                            if (
-                              !(await send({
-                                type: "task.update",
-                                id,
-                                version: t.version,
-                                data: { statusId },
-                              }))
-                            )
-                              break;
-                          }
-                          setSelected([]);
-                        }}
-                      >
-                        <option value="" disabled>
-                          {en.tasks.bulkStatus}
-                        </option>
-                        {w.statuses
-                          .filter((s) => s.category !== "done")
-                          .map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
+                <TaskTable
+                  w={w}
+                  demo={demo}
+                  query={{
+                    ...advanced,
+                    project: projectId ?? undefined,
+                    status,
+                    priority,
+                    assignee,
+                    search,
+                    scope: page === "myTasks" ? myScope : undefined,
+                  }}
+                  tasks={filtered}
+                  onTask={setTaskId}
+                  send={send}
+                  busy={busy}
+                />
               )}
               {view === "calendar" && (
-                <Calendar
+                <TaskCalendar
+                  w={w}
                   tasks={filtered}
-                  month={month}
-                  setMonth={setMonth}
                   open={setTaskId}
+                  openProject={(id) => navigate("projects", id)}
                 />
               )}{" "}
               {!filtered.length && view !== "board" && (
@@ -993,9 +1077,17 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
               )}
             </>
           )}
+          {page === "manager" && (
+            <ManagerPanel w={w} open={setTaskId} demo={demo} />
+          )}
           {page === "team" && <TeamPanel w={w} send={send} busy={busy} />}
           {page === "reports" && (
-            <ReportPanel w={w} month={month} setMonth={setMonth} />
+            <ReportingPanel
+              w={w}
+              month={month}
+              setMonth={setMonth}
+              demo={demo}
+            />
           )}
           {page === "activity" && (
             <>
@@ -1007,7 +1099,10 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
             </>
           )}
           {page === "settings" && (
-            <SettingsPanel w={w} send={send} busy={busy} demo={demo} />
+            <>
+              <SettingsPanel w={w} send={send} busy={busy} demo={demo} />
+              <AdminPanel w={w} send={send} busy={busy} demo={demo} />
+            </>
           )}
         </main>
         <footer className="app-footer">
@@ -1067,12 +1162,15 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
           {task && (
             <TaskDetail
               key={task.id + "-" + task.version}
+              demo={demo}
               w={w}
               task={task}
               send={send}
               busy={busy}
               activity={activityList(
-                w.events.filter((e) => e.taskId === task.id),
+                w.events.filter(
+                  (e) => e.taskId === task.id && e.action !== "task.commented",
+                ),
               )}
             />
           )}
@@ -1126,6 +1224,44 @@ export function TammApp({ demo = false }: { demo?: boolean }) {
                 >
                   <Layers size={16} />
                   {p.name}
+                </button>
+              ))}
+            {w.members
+              .filter((m) =>
+                `${m.name} ${m.jobTitle ?? ""}`
+                  .toLowerCase()
+                  .includes(search.toLowerCase()),
+              )
+              .slice(0, 6)
+              .map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => {
+                    setCommandOpen(false);
+                    navigate("team");
+                  }}
+                >
+                  <Users size={16} />
+                  {m.name}
+                  <small>{m.jobTitle}</small>
+                </button>
+              ))}
+            {w.teams
+              .filter((t) =>
+                t.name.toLowerCase().includes(search.toLowerCase()),
+              )
+              .slice(0, 6)
+              .map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    setCommandOpen(false);
+                    navigate("tasks");
+                    setAdvanced({ team: t.id });
+                  }}
+                >
+                  <Users size={16} />
+                  {t.name}
                 </button>
               ))}
           </div>

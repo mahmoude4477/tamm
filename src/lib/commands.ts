@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { can, canEditTask, canSeeProject } from "./permissions";
+import {
+  extendedDefinitions,
+  applyExtended,
+  type ExtendedCommand,
+} from "./extended-commands";
+import { permissionKeys, can, canEditTask, canSeeProject } from "./permissions";
 import type { Workspace, Task, Event } from "./types";
 const id = z.string().min(1).max(100);
 const label = z.string().trim().min(1).max(200);
@@ -17,9 +22,27 @@ const taskFields = z.object({
   parentId: id.nullable(),
   dependencyIds: z.array(id).max(100),
   tags: z.array(z.string().trim().min(1).max(40)).max(20),
+  assigneeIds: z.array(id).max(50).optional(),
+  watcherIds: z.array(id).max(100).optional(),
+  relatedIds: z.array(id).max(100).optional(),
+  duplicateOfId: id.nullable().optional(),
+  taskType: z.string().max(100).optional(),
+  actualHours: z.number().min(0).max(10000).optional(),
   checklist: z.array(z.object({ id, text: label, done: z.boolean() })).max(100),
 });
 export const commandSchema = z.discriminatedUnion("type", [
+  ...extendedDefinitions,
+  z.object({
+    type: z.literal("task.bulk"),
+    items: z
+      .array(z.object({ id, version: z.number().int() }))
+      .min(1)
+      .max(100),
+    data: taskFields.partial(),
+    reason: z.string().trim().max(2000).optional(),
+    archived: z.boolean().optional(),
+    addTag: z.string().trim().min(1).max(40).optional(),
+  }),
   z.object({ type: z.literal("task.create"), data: taskFields }),
   z.object({
     type: z.literal("task.update"),
@@ -39,6 +62,8 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("task.comment"),
     id,
     text: z.string().trim().min(1).max(10000),
+    parentEventId: id.nullable().optional(),
+    mentionedIds: z.array(id).max(50).optional(),
   }),
   z.object({ type: z.literal("task.archive"), id, archived: z.boolean() }),
   z.object({ type: z.literal("task.delete"), id }),
@@ -72,6 +97,10 @@ export const commandSchema = z.discriminatedUnion("type", [
     id,
     role: z.enum(["owner", "admin", "manager", "member", "viewer"]),
     teamId: id.nullable(),
+    teamIds: z.array(id).max(100).optional(),
+    jobTitle: z.string().max(150).optional(),
+    active: z.boolean().optional(),
+    customRoleId: id.nullable().optional(),
   }),
 ]);
 export type Command = z.infer<typeof commandSchema>;
@@ -89,11 +118,64 @@ export function applyCommand(
   now = new Date().toISOString(),
   uuid = () => crypto.randomUUID(),
 ): Workspace {
+  if (command.type === "task.bulk") {
+    let next = source;
+    for (const item of command.items) {
+      const task = next.tasks.find((t) => t.id === item.id);
+      if (!task || task.version !== item.version) fail("conflict");
+      if (Object.keys(command.data).length || command.addTag)
+        next = applyCommand(
+          next,
+          {
+            type: "task.update",
+            ...item,
+            data: {
+              ...command.data,
+              ...(command.addTag
+                ? { tags: [...new Set([...task.tags, command.addTag])] }
+                : {}),
+            },
+            reason: command.reason,
+          },
+          now,
+          uuid,
+        );
+      if (command.archived !== undefined)
+        next = applyCommand(
+          next,
+          { type: "task.archive", id: item.id, archived: command.archived },
+          now,
+          uuid,
+        );
+    }
+    return next;
+  }
   const w = structuredClone(source);
   const actor = w.members.find((m) => m.id === w.currentUserId);
-  if (!actor) fail("session");
+  if (!actor || actor.active === false) fail("session");
+  if (
+    "id" in command &&
+    (command.type === "task.follow" || command.type.startsWith("comment."))
+  ) {
+    const task =
+      command.type === "task.follow"
+        ? w.tasks.find((t) => t.id === command.id)
+        : w.tasks.find(
+            (t) => t.id === w.events.find((e) => e.id === command.id)?.taskId,
+          );
+    if (!task || !canSeeProject(w, task.projectId)) fail("forbidden");
+  }
+  if (
+    command.type.startsWith("project.") &&
+    "id" in command &&
+    command.id &&
+    !canSeeProject(w, command.id)
+  )
+    fail("forbidden");
+  const extended = applyExtended(w, command as ExtendedCommand, now, uuid);
+  if (extended) return extended;
   const requirePermission = (p: Parameters<typeof can>[1]) => {
-    if (!can(actor.role, p)) fail("forbidden");
+    if (!can(actor.role, p, actor.permissions)) fail("forbidden");
   };
   const emit = (
     action: string,
@@ -112,7 +194,12 @@ export function applyCommand(
     });
   const findTask = (taskId: string) => {
     const task = w.tasks.find((t) => t.id === taskId);
-    if (!task || !canSeeProject(w, task.projectId)) fail("notFound");
+    if (
+      !task ||
+      !canSeeProject(w, task.projectId) ||
+      w.projects.find((p) => p.id === task.projectId)?.deletedAt
+    )
+      fail("notFound");
     return task;
   };
   const checkTask = (t: Task) => {
@@ -122,19 +209,63 @@ export function applyCommand(
     )
       fail("project");
     if (!w.statuses.some((s) => s.id === t.statusId)) fail("status");
-    if (t.assigneeId && !w.members.some((m) => m.id === t.assigneeId))
+    if (
+      t.assigneeId &&
+      !w.members.some((m) => m.id === t.assigneeId && m.active !== false)
+    )
       fail("member");
     if (t.startDate && t.dueDate && t.startDate > t.dueDate) fail("invalid");
-    const project = w.projects.find((p) => p.id === t.projectId)!;
+    for (const memberId of [...(t.assigneeIds ?? []), ...(t.watcherIds ?? [])])
+      if (!w.members.some((m) => m.id === memberId && m.active !== false))
+        fail("member");
     if (
-      project.visibility === "private" &&
-      t.assigneeId &&
-      !project.memberIds.includes(t.assigneeId) &&
-      !w.members.some(
-        (m) => m.id === t.assigneeId && ["owner", "admin"].includes(m.role),
+      t.relatedIds?.some(
+        (id) =>
+          id === t.id ||
+          !w.tasks.some(
+            (x) => x.id === id && !x.deletedAt && canSeeProject(w, x.projectId),
+          ),
+      )
+    )
+      fail("invalid");
+    if (
+      t.duplicateOfId &&
+      (t.duplicateOfId === t.id ||
+        !w.tasks.some(
+          (x) =>
+            x.id === t.duplicateOfId &&
+            !x.deletedAt &&
+            canSeeProject(w, x.projectId),
+        ))
+    )
+      fail("invalid");
+    if (
+      t.taskType &&
+      !w.settings?.taskTypes.includes(t.taskType) &&
+      !["task", "bug", "request"].includes(t.taskType)
+    )
+      fail("invalid");
+    const project = w.projects.find((p) => p.id === t.projectId)!;
+    if (project.deletedAt) fail("project");
+    if (
+      [t.assigneeId, ...(t.assigneeIds ?? [])].some(
+        (id) => id && !canSeeProject({ ...w, currentUserId: id }, project.id),
       )
     )
       fail("member");
+    const done = (task: Task) =>
+      w.statuses.find((s) => s.id === task.statusId)?.category === "done";
+    if (
+      !done(t) &&
+      w.tasks.some(
+        (task) =>
+          task.id !== t.id &&
+          !task.deletedAt &&
+          done(task) &&
+          (task.id === t.parentId || task.dependencyIds.includes(t.id)),
+      )
+    )
+      fail("dependency");
     const walk = (current: string, seen: Set<string>) => {
       if (current === t.id) fail("cycle");
       if (seen.has(current)) return;
@@ -171,6 +302,8 @@ export function applyCommand(
     requirePermission("task.create");
     if (command.data.assigneeId && command.data.assigneeId !== actor.id)
       requirePermission("task.assign");
+    if (command.data.assigneeIds?.some((id) => id !== actor.id))
+      requirePermission("task.assign");
     const t: Task = {
       ...command.data,
       id: uuid(),
@@ -194,18 +327,61 @@ export function applyCommand(
     };
     const t = findTask(cmd.id);
     if (command.type !== "task.restore" && t.deletedAt) fail("notFound");
-    if (!canEditTask(w, t)) fail("forbidden");
+    if (command.type === "task.comment") {
+      if (!can(actor.role, "comment.create", actor.permissions))
+        fail("forbidden");
+    } else if (command.type === "task.review") requirePermission("task.review");
+    else if (
+      ["task.archive", "task.delete", "task.restore"].includes(command.type)
+    )
+      requirePermission("task.delete");
+    else if (
+      !(
+        command.type === "task.update" &&
+        can(actor.role, "task.assign", actor.permissions) &&
+        Object.keys(command.data).every((key) =>
+          ["assigneeId", "assigneeIds"].includes(key),
+        )
+      ) &&
+      !canEditTask(w, t)
+    )
+      fail("forbidden");
     if (command.type === "task.update") {
       if (t.version !== command.version) fail("conflict");
       const next = { ...t, ...command.data };
+      const previousStatus = w.statuses.find((s) => s.id === t.statusId);
+      if (
+        next.statusId !== t.statusId &&
+        previousStatus?.allowedNextIds?.length &&
+        !previousStatus.allowedNextIds.includes(next.statusId)
+      )
+        fail("transition");
+      if (
+        command.data.assigneeIds &&
+        JSON.stringify(command.data.assigneeIds) !==
+          JSON.stringify(t.assigneeIds ?? [])
+      )
+        requirePermission("task.assign");
       const isTransfer = next.assigneeId !== t.assigneeId;
       if (isTransfer) {
-        if (!can(actor.role, "task.assign")) {
+        if (
+          w.settings?.transferPolicy !== "team" &&
+          w.settings?.transferPolicy &&
+          !can(actor.role, "task.assign", actor.permissions)
+        )
+          fail(
+            w.settings.transferPolicy === "approval"
+              ? "transferApproval"
+              : "forbidden",
+          );
+        if (!can(actor.role, "task.assign", actor.permissions)) {
           const target = w.members.find((m) => m.id === next.assigneeId);
           if (
             t.assigneeId !== actor.id ||
-            !actor.teamId ||
-            target?.teamId !== actor.teamId
+            ![actor.teamId, ...(actor.teamIds ?? [])].some(
+              (id) =>
+                id && [target?.teamId, ...(target?.teamIds ?? [])].includes(id),
+            )
           )
             fail("forbidden");
         }
@@ -223,12 +399,20 @@ export function applyCommand(
       if (w.statuses.find((s) => s.id === t.statusId)?.category !== "done")
         t.completedAt = null;
       emit(
-        isTransfer ? "task.transferred" : "task.updated",
+        isTransfer
+          ? "task.transferred"
+          : next.statusId !== previousStatus?.id
+            ? "task.status_changed"
+            : "task.updated",
         t.id,
         command.reason ?? "",
-        isTransfer
-          ? { previousAssigneeId: old, newAssigneeId: t.assigneeId }
-          : {},
+        {
+          previousStatusId: previousStatus?.id,
+          newStatusId: t.statusId,
+          ...(isTransfer
+            ? { previousAssigneeId: old, newAssigneeId: t.assigneeId }
+            : {}),
+        },
       );
     }
     if (command.type === "task.review") {
@@ -241,6 +425,7 @@ export function applyCommand(
         (s) => s.category === (command.approve ? "done" : "active"),
       );
       if (!s) fail("status");
+      const previousStatusId = t.statusId;
       const next = { ...t, statusId: s.id };
       checkTask(next);
       Object.assign(t, next, {
@@ -248,10 +433,30 @@ export function applyCommand(
         updatedAt: now,
         version: t.version + 1,
       });
-      emit("task.reviewed", t.id, command.comment);
+      emit(
+        command.approve ? "task.approved" : "task.returned",
+        t.id,
+        command.comment,
+        { previousStatusId, newStatusId: s.id },
+      );
     }
     if (command.type === "task.comment") {
-      emit("task.commented", t.id, command.text);
+      if (
+        command.mentionedIds?.some((id) => !w.members.some((m) => m.id === id))
+      )
+        fail("member");
+      if (
+        command.parentEventId &&
+        !w.events.some(
+          (e) =>
+            e.id === command.parentEventId && e.taskId === t.id && !e.deletedAt,
+        )
+      )
+        fail("notFound");
+      emit("task.commented", t.id, command.text, {
+        parentEventId: command.parentEventId ?? null,
+        mentionedIds: command.mentionedIds ?? [],
+      });
     }
     if (command.type === "task.archive") {
       requirePermission("task.delete");
@@ -292,12 +497,14 @@ export function applyCommand(
       archived: false,
       memberIds: [...new Set([...command.data.memberIds, actor.id])],
     });
-    emit("project.created", null, command.data.name);
+    emit("project.created", null, command.data.name, {
+      projectId: w.projects.at(-1)!.id,
+    });
   } else if (command.type === "project.archive") {
     requirePermission("project.manage");
     if (!canSeeProject(w, command.id)) fail("notFound");
     w.projects.find((p) => p.id === command.id)!.archived = command.archived;
-    emit("project.updated", null);
+    emit("project.updated", null, "", { projectId: command.id });
   } else if (command.type === "workflow.create") {
     requirePermission("workflow.manage");
     w.statuses.push({
@@ -336,12 +543,58 @@ export function applyCommand(
     if (
       member.role === "owner" &&
       command.role !== "owner" &&
-      w.members.filter((m) => m.role === "owner").length === 1
+      w.members.filter((m) => m.role === "owner" && m.active !== false)
+        .length === 1
     )
       fail("owner");
     if (command.teamId && !w.teams.some((t) => t.id === command.teamId))
       fail("invalid");
-    Object.assign(member, { role: command.role, teamId: command.teamId });
+    if (
+      command.active === false &&
+      member.role === "owner" &&
+      w.members.filter((m) => m.role === "owner" && m.active !== false)
+        .length === 1
+    )
+      fail("owner");
+    if (command.teamIds?.some((id) => !w.teams.some((t) => t.id === id)))
+      fail("invalid");
+    if (
+      command.customRoleId &&
+      !w.customRoles?.some((r) => r.id === command.customRoleId)
+    )
+      fail("invalid");
+    if (command.role === "owner" && command.customRoleId) fail("owner");
+    const nextCustomId =
+      command.customRoleId === undefined
+        ? member.customRoleId
+        : command.customRoleId;
+    const nextPermissions = w.customRoles?.find(
+      (r) => r.id === nextCustomId,
+    )?.permissions;
+    if (
+      actor.role !== "owner" &&
+      permissionKeys.some(
+        (p) =>
+          (can(command.role, p, nextPermissions) ||
+            can(member.role, p, member.permissions)) &&
+          !can(actor.role, p, actor.permissions),
+      )
+    )
+      fail("forbidden");
+    Object.assign(member, {
+      role: command.role,
+      teamId: command.teamId,
+      teamIds: command.teamIds ?? member.teamIds,
+      jobTitle: command.jobTitle ?? member.jobTitle,
+      active: command.active ?? member.active,
+      customRoleId:
+        command.customRoleId === undefined
+          ? member.customRoleId
+          : command.customRoleId,
+    });
+    member.permissions = w.customRoles?.find(
+      (r) => r.id === member.customRoleId,
+    )?.permissions;
     emit("member.updated", null, member.name);
   }
   return w;
@@ -353,15 +606,21 @@ export function visibleWorkspace(w: Workspace): Workspace {
   );
   return {
     ...w,
+    attachmentTaskIds: w.attachmentTaskIds?.filter((id) =>
+      tasks.some((t) => t.id === id),
+    ),
     projects,
     tasks,
     events: w.events.filter((e) =>
       e.taskId
         ? tasks.some((t) => t.id === e.taskId)
-        : can(
-            w.members.find((m) => m.id === w.currentUserId)!.role,
-            "user.manage",
-          ),
+        : e.projectId
+          ? projects.some((p) => p.id === e.projectId)
+          : can(
+              w.members.find((m) => m.id === w.currentUserId)!.role,
+              "user.manage",
+              w.members.find((m) => m.id === w.currentUserId)?.permissions,
+            ),
     ),
   };
 }

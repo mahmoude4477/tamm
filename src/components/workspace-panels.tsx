@@ -1,4 +1,5 @@
 "use client";
+import { AccountPanel } from "./account-panel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,7 +11,7 @@ import { authClient } from "@/lib/auth-client";
 import { can } from "@/lib/permissions";
 import { activeTasks, isOpen, monthlyReport } from "@/lib/reports";
 import type { Role, Task, Workspace } from "@/lib/types";
-import en from "@/messages/en.json";
+import { useMessages, useDates, useLocale } from "@/components/locale-provider";
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,7 +22,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import { today } from "@/lib/dates";
 import type { Send } from "./task-editor";
 import { Avatar, download, Heading, StatusDot } from "./workspace-shared";
 export function Calendar({
@@ -35,6 +35,11 @@ export function Calendar({
   setMonth: (m: string) => void;
   open: (id: string) => void;
 }) {
+  const { locale, timezone } = useLocale();
+
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const [y, m] = month.split("-").map(Number);
   const first = new Date(Date.UTC(y, m - 1, 1));
   const days = Array.from(
@@ -47,7 +52,7 @@ export function Calendar({
     <div className="calendar">
       <div className="calendar-heading">
         <h2>
-          {new Intl.DateTimeFormat("en", {
+          {new Intl.DateTimeFormat(locale, {
             month: "long",
             year: "numeric",
             timeZone: "UTC",
@@ -75,7 +80,7 @@ export function Calendar({
       <div className="calendar-weekdays">
         {days.slice(0, 7).map((d) => (
           <span key={d.toISOString()}>
-            {new Intl.DateTimeFormat("en", {
+            {new Intl.DateTimeFormat(locale, {
               weekday: "short",
               timeZone: "UTC",
             }).format(d)}
@@ -116,11 +121,16 @@ export function TeamPanel({
   send: Send;
   busy: boolean;
 }) {
+  const { locale, timezone } = useLocale();
+
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const [dialog, setDialog] = useState<"member" | "team" | "department" | null>(
     null,
   );
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
-  const manage = can(actor.role, "user.manage");
+  const manage = can(actor.role, "user.manage", actor.permissions);
   return (
     <>
       <Heading title={en.team.title} subtitle={en.team.subtitle}>
@@ -149,13 +159,15 @@ export function TeamPanel({
           <tbody>
             {w.members.map((m) => {
               const tasks = activeTasks(w).filter(
-                (t) => t.assigneeId === m.id && isOpen(w, t),
+                (t) =>
+                  [t.assigneeId, ...(t.assigneeIds ?? [])].includes(m.id) &&
+                  isOpen(w, t),
               );
               return (
                 <tr key={m.id}>
                   <td>
                     <div className="person-cell">
-                      <Avatar name={m.name} />
+                      <Avatar name={m.name} image={m.image} />
                       <span>
                         {m.name}
                         <small>{m.email}</small>
@@ -358,14 +370,22 @@ export function ReportPanel({
   month: string;
   setMonth: (value: string) => void;
 }) {
+  const { locale, timezone } = useLocale();
+
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const report = monthlyReport(w, month);
   const rows = w.members.map((m) => {
     const completed = report.completed.filter((t) => t.assigneeId === m.id);
     return [
       m.name,
       completed.length,
-      activeTasks(w).filter((t) => t.assigneeId === m.id && isOpen(w, t))
-        .length,
+      activeTasks(w).filter(
+        (t) =>
+          [t.assigneeId, ...(t.assigneeIds ?? [])].includes(m.id) &&
+          isOpen(w, t),
+      ).length,
       activeTasks(w).filter(
         (t) =>
           t.assigneeId === m.id &&
@@ -467,6 +487,11 @@ export function SettingsPanel({
   busy: boolean;
   demo: boolean;
 }) {
+  const { locale, timezone } = useLocale();
+
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
   return (
     <>
@@ -483,7 +508,7 @@ export function SettingsPanel({
               </div>
             ))}
           </div>
-          {can(actor.role, "workflow.manage") && (
+          {can(actor.role, "workflow.manage", actor.permissions) && (
             <form
               className="editor-form"
               onSubmit={async (e) => {
@@ -543,7 +568,9 @@ export function SettingsPanel({
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={busy || !can(actor.role, "task.delete")}
+                  disabled={
+                    busy || !can(actor.role, "task.delete", actor.permissions)
+                  }
                   onClick={() => send({ type: "task.restore", id: t.id })}
                 >
                   {en.common.restore}
@@ -559,7 +586,9 @@ export function SettingsPanel({
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={busy || !can(actor.role, "task.delete")}
+                  disabled={
+                    busy || !can(actor.role, "task.delete", actor.permissions)
+                  }
                   onClick={() =>
                     send({ type: "task.archive", id: t.id, archived: false })
                   }
@@ -568,13 +597,23 @@ export function SettingsPanel({
                 </Button>
               </div>
             ))}
-          {!demo && <AccountSettings />}
+          {!demo && (
+            <>
+              <AccountPanel />
+              <AccountSettings />
+            </>
+          )}
         </section>
       </div>
     </>
   );
 }
 function AccountSettings() {
+  const { locale, timezone } = useLocale();
+
+  const en = useMessages();
+  const { today, formatDate } = useDates();
+
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   return (
