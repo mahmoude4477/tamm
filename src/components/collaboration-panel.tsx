@@ -387,6 +387,9 @@ export function Inbox({
   useEffect(() => {
     refresh().catch(() => setMessage(en.common.error));
   }, [url]);
+  useEffect(() => {
+    if (open) refresh().catch(() => setMessage(en.common.error));
+  }, [open]);
   async function send(body: object) {
     setBusy(true);
     setMessage("");
