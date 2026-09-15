@@ -213,9 +213,15 @@ test("V1.5 planning, capacity, analytics and incremental board", async ({
     .first()
     .getAttribute("value");
   await form.locator('select[name="tasks"]').selectOption(taskId!);
+  const saved = page.waitForResponse(
+    (r) => r.url().includes("/api/planning") && r.request().method() === "POST",
+  );
   await form
     .getByRole("button", { name: en.planning.save, exact: true })
     .click();
+  const saveResponse = await saved;
+  expect(await saveResponse.text()).not.toContain('"error"');
+  expect(saveResponse.ok()).toBeTruthy();
   await expect(
     page.getByRole("heading", { name: milestoneName }),
   ).toBeVisible();

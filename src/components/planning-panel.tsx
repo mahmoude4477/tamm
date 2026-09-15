@@ -246,7 +246,16 @@ export function PlanningPanel({
                       defaultValue={editing?.taskIds ?? []}
                     >
                       {w.tasks
-                        .filter((t) => t.projectId === project && !t.deletedAt)
+                        .filter(
+                          (t) =>
+                            t.projectId === project &&
+                            !t.deletedAt &&
+                            !data.milestones.some(
+                              (m) =>
+                                m.id !== editing?.id &&
+                                m.taskIds.includes(t.id),
+                            ),
+                        )
                         .map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.title}
