@@ -1,3 +1,4 @@
+import { createDemo } from "../src/lib/demo";
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "@playwright/test";
 import en from "../src/messages/en.json";
@@ -420,7 +421,6 @@ test("one language menu, translated persisted statuses, and one initial board re
   page,
   baseURL,
 }) => {
-  const { createDemo } = await import("../src/lib/demo");
   const w = createDemo(en);
   const calls: string[] = [];
   await page.route("**/api/**", async (route) => {
