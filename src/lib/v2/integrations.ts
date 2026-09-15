@@ -126,7 +126,7 @@ export async function deliverWebhooks() {
       )
         continue;
       await db.execute(sql`insert into webhook_delivery(id,workspace_id,endpoint_id,event_id,payload)
-   select gen_random_uuid()::text,e.workspace_id,${endpoint.id},e.id,jsonb_build_object('id',e.id,'type',e.action,'workspaceId',e.workspace_id,'projectId',${endpoint.projectId},'taskId',e.task_id,'occurredAt',e.created_at)
+   select gen_random_uuid()::text,e.workspace_id,${endpoint.id},e.id,jsonb_build_object('id',e.id,'type',e.action,'workspaceId',e.workspace_id,'projectId',${endpoint.projectId}::text,'taskId',e.task_id,'occurredAt',e.created_at)
    from activity_event e left join task t on t.id=e.task_id where e.workspace_id=${endpoint.workspaceId} and coalesce(e.project_id,t.project_id)=${endpoint.projectId} and e.created_at::timestamptz>=${endpoint.createdAt} and e.action not like 'comment.%'
    and not exists(select 1 from webhook_delivery d where d.endpoint_id=${endpoint.id} and d.event_id=e.id) order by e.created_at,e.id limit 50 on conflict do nothing`);
       const pending = await db

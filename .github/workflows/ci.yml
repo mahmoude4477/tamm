@@ -30,6 +30,10 @@ jobs:
       MAIL_TRANSPORT: "file"
       ALLOW_FILE_MAIL: "true"
       MAIL_DIRECTORY: /tmp/tamm-test-mail
+      AI_ENABLED: "true"
+      AI_BASE_URL: "http://127.0.0.1:3198/v1"
+      AI_MODEL: "local-test-fixture"
+      AI_DAILY_LIMIT: "3"
       WEBHOOK_ALLOWED_ORIGINS: "http://127.0.0.1:3199"
       WEBHOOK_SECRET_KEY: "ci-only-webhook-encryption-key-32-characters"
       NEXT_TELEMETRY_DISABLED: "1"

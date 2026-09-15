@@ -257,12 +257,59 @@ try {
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }
-await api(
-  `/api/assistant?workspaceId=${w.id}`,
-  { mode: "summary", projectId: project.id, prompt: "Summarize", locale: "en" },
-  owner,
-  500,
-);
+const aiRequests = [];
+const aiServer = createServer(async (req, res) => {
+  let text = "";
+  for await (const c of req) text += c;
+  aiRequests.push(JSON.parse(text));
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(
+    JSON.stringify({
+      choices: [{ message: { content: "Suggested test content" } }],
+    }),
+  );
+});
+await new Promise((resolve) => aiServer.listen(3198, "127.0.0.1", resolve));
+try {
+  for (const mode of ["draft", "summary", "plan"]) {
+    const answer = await api(`/api/assistant?workspaceId=${w.id}`, {
+      mode,
+      projectId: project.id,
+      prompt: "Prepare a concise suggestion",
+      locale: "en",
+    });
+    assert.equal(answer.text, "Suggested test content");
+  }
+  assert.equal(aiRequests.length, 3);
+  assert.ok(aiRequests.every((r) => r.model === "local-test-fixture"));
+  for (const req of aiRequests) {
+    const context = JSON.parse(req.messages[1].content);
+    assert.equal(context.project, project.name);
+    if (privateProject)
+      assert.ok(!JSON.stringify(context).includes(privateProject.name));
+  }
+  assert.deepEqual(JSON.parse(aiRequests[0].messages[1].content).tasks, []);
+  const limited = await globalThis.fetch(
+    base + `/api/assistant?workspaceId=${w.id}`,
+    {
+      method: "POST",
+      headers: {
+        Origin: base,
+        Cookie: owner,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        mode: "draft",
+        projectId: project.id,
+        prompt: "Limit",
+        locale: "en",
+      }),
+    },
+  );
+  assert.equal(limited.status, 429);
+} finally {
+  await new Promise((resolve) => aiServer.close(resolve));
+}
 console.log(
-  "V2 integration passed: typed fields, private scope, timers, time totals, scoped read/write keys, revocation, calendar subscriptions, signed webhook retries, and disabled AI.",
+  "V2 integration passed: typed fields, private scope, timers, time totals, scoped read/write keys, revocation, calendars, signed webhook retries, and bounded AI drafts with a local mock provider.",
 );
