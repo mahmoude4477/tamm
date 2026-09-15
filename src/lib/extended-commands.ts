@@ -227,6 +227,7 @@ export function applyExtended(
       }
       w.name = c.name;
       w.settings = {
+        ...w.settings,
         timezone: c.timezone,
         transferPolicy: c.transferPolicy,
         taskTypes: c.taskTypes,

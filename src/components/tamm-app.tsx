@@ -1,5 +1,8 @@
 "use client";
 import { LocalePicker, useLocale } from "./locale-provider";
+import { ServerBoard } from "./server-board";
+import { PlanningPanel } from "./planning-panel";
+import { AnalyticsPanel } from "./analytics-panel";
 import { ManagerPanel } from "./manager-panel";
 import { TaskCalendar } from "./task-calendar";
 import { ReportingPanel } from "./reporting-panel";
@@ -70,6 +73,8 @@ import {
   StatusDot,
 } from "./workspace-shared";
 type Page =
+  | "planning"
+  | "analytics"
   | "tasks"
   | "manager"
   | "overview"
@@ -87,6 +92,8 @@ const nav = [
   ["team", Users],
   ["manager", Users],
   ["reports", ChartNoAxesCombined],
+  ["planning", CalendarDays],
+  ["analytics", ChartNoAxesCombined],
   ["activity", Activity],
 ] as const;
 export function TammApp({
@@ -115,6 +122,7 @@ export function TammApp({
   >("assigned");
   const [page, setPage] = useState<Page>(initialPage);
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [fullLoaded, setFullLoaded] = useState(demo || initialPage !== "tasks");
   const [view, setView] = useState<"board" | "list" | "calendar">("board");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -183,7 +191,9 @@ export function TammApp({
       setLoaded(true);
       return;
     }
-    fetch("/api/workspace")
+    fetch(
+      `/api/workspace?${new URLSearchParams({ ...(initialPage === "tasks" ? { content: "metadata" } : {}), ...(new URLSearchParams(location.search).get("workspaceId") ? { workspaceId: new URLSearchParams(location.search).get("workspaceId")! } : {}) })}`,
+    )
       .then(async (r) => {
         if (r.status === 401) {
           window.location.assign("/login");
@@ -192,6 +202,8 @@ export function TammApp({
         if (!r.ok) throw Error();
         const data = await r.json();
         setW(data.workspace);
+        const linkedTask = new URLSearchParams(location.search).get("task");
+        if (linkedTask) setTaskId(linkedTask);
         setLoaded(true);
       })
       .catch(() => {
@@ -212,6 +224,29 @@ export function TammApp({
     window.addEventListener("tamm:refresh", reload);
     return () => window.removeEventListener("tamm:refresh", reload);
   }, [demo, en.common.error]);
+  useEffect(() => {
+    if (
+      demo ||
+      fullLoaded ||
+      !w ||
+      (page === "tasks" && view !== "calendar" && !taskId && !createTask)
+    )
+      return;
+    const controller = new AbortController();
+    fetch(`/api/workspace?workspaceId=${encodeURIComponent(w.id)}`, {
+      signal: controller.signal,
+    })
+      .then(async (r) => {
+        if (!r.ok) throw Error();
+        const data = await r.json();
+        setW(data.workspace);
+        setFullLoaded(true);
+      })
+      .catch((e) => {
+        if (e.name !== "AbortError") setError(en.common.error);
+      });
+    return () => controller.abort();
+  }, [demo, fullLoaded, w?.id, page, view, taskId, createTask]);
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -496,12 +531,17 @@ export function TammApp({
           <kbd>⌘ K</kbd>
         </button>
         {!demo && <Inbox w={w} onTask={setTaskId} />}
+        {!demo && (
+          <Link className="text-link" href="/board">
+            {en.planning.boardLink}
+          </Link>
+        )}
         <span className="nav-caption">{en.nav.workspace}</span>
         <nav>
           {nav
             .filter(
               ([key]) =>
-                (key !== "reports" ||
+                (!["reports", "analytics"].includes(key) ||
                   can(person!.role, "report.view", person!.permissions)) &&
                 (key !== "manager" ||
                   can(person!.role, "task.review", person!.permissions)),
@@ -936,7 +976,23 @@ export function TammApp({
                   </Button>
                 </div>
               )}
-              {view === "board" && (
+              {view === "board" && !demo && (
+                <ServerBoard
+                  w={w}
+                  filters={{
+                    ...advanced,
+                    search,
+                    status,
+                    priority,
+                    assignee,
+                    project: projectId ?? undefined,
+                    scope: page === "myTasks" ? myScope : undefined,
+                  }}
+                  onTask={setTaskId}
+                  send={send}
+                />
+              )}
+              {view === "board" && demo && (
                 <div className="board">
                   {w.statuses.map((s) => (
                     <section
@@ -1077,6 +1133,10 @@ export function TammApp({
               )}
             </>
           )}
+          {page === "planning" && (
+            <PlanningPanel w={w} demo={demo} onTask={setTaskId} />
+          )}
+          {page === "analytics" && <AnalyticsPanel w={w} demo={demo} />}
           {page === "manager" && (
             <ManagerPanel w={w} open={setTaskId} demo={demo} />
           )}

@@ -105,6 +105,7 @@ export type Workspace = {
 };
 
 export type WorkspaceSettings = {
+  workingDays?: number[];
   transferPolicy: "team" | "manager" | "approval";
   timezone: string;
   taskTypes: string[];

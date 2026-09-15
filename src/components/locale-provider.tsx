@@ -1,4 +1,5 @@
 "use client";
+import { DirectionProvider } from "@base-ui/react/direction-provider";
 import { createContext, useContext, useState, useMemo } from "react";
 import { getMessages, locales, type Locale, type Messages } from "@/lib/i18n";
 import { formatDate, today } from "@/lib/dates";
@@ -25,7 +26,11 @@ export function LocaleProvider({
     () => ({ locale, messages: getMessages(locale), timezone, setTimezone }),
     [locale, timezone],
   );
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  return (
+    <DirectionProvider direction={locales[locale].dir}>
+      <Context.Provider value={value}>{children}</Context.Provider>
+    </DirectionProvider>
+  );
 }
 export function useMessages() {
   return useContext(Context).messages;

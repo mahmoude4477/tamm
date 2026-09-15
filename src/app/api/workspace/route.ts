@@ -35,7 +35,15 @@ export async function GET(request: Request) {
         { headers: { "Cache-Control": "no-store" } },
       );
     let data = await db.transaction(
-      (tx) => loadWorkspace(tx, member.workspaceId, identity.user.id),
+      (tx) =>
+        loadWorkspace(
+          tx,
+          member.workspaceId,
+          identity.user.id,
+          new URL(request.url).searchParams.get("content") === "metadata"
+            ? "metadata"
+            : "full",
+        ),
       { isolationLevel: "repeatable read", accessMode: "read only" },
     );
     if (!data.statuses.length)

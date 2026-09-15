@@ -10,7 +10,9 @@ import {
   foreignKey,
   unique,
   doublePrecision,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { Task, Status, Role } from "@/lib/types";
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -462,6 +464,9 @@ export const notifications = pgTable(
     readAt: timestamp("read_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     dedupeKey: text("dedupe_key").notNull().unique(),
+    emailedAt: timestamp("emailed_at"),
+    emailAttempts: integer("email_attempts").notNull().default(0),
+    emailRetryAt: timestamp("email_retry_at"),
   },
   (t) => [index("notification_inbox").on(t.workspaceId, t.userId, t.createdAt)],
 );
@@ -475,6 +480,7 @@ export const notificationPreferences = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id),
+    emailEnabled: boolean("email_enabled").notNull().default(false),
     enabledKinds: jsonb("enabled_kinds")
       .$type<string[]>()
       .notNull()
@@ -528,4 +534,115 @@ export const transferRequests = pgTable("transfer_request", {
   status: text("status").notNull().default("pending"),
   reviewerId: text("reviewer_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const milestones = pgTable(
+  "milestone",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    projectId: text("project_id").notNull(),
+    name: text("name").notNull(),
+    dueDate: text("due_date").notNull(),
+    archived: boolean("archived").notNull().default(false),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("milestone_scope").on(t.workspaceId, t.id),
+    foreignKey({
+      columns: [t.workspaceId, t.projectId],
+      foreignColumns: [projects.workspaceId, projects.id],
+    }),
+  ],
+);
+export const milestoneTasks = pgTable(
+  "milestone_task",
+  {
+    workspaceId: text("workspace_id").notNull(),
+    milestoneId: text("milestone_id").notNull(),
+    taskId: text("task_id").notNull(),
+  },
+  (t) => [
+    unique("milestone_task_unique").on(t.workspaceId, t.taskId),
+    foreignKey({
+      columns: [t.workspaceId, t.milestoneId],
+      foreignColumns: [milestones.workspaceId, milestones.id],
+    }),
+    foreignKey({
+      columns: [t.workspaceId, t.taskId],
+      foreignColumns: [tasks.workspaceId, tasks.id],
+    }),
+  ],
+);
+export const capacities = pgTable(
+  "capacity",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    userId: text("user_id").notNull(),
+    weekStart: text("week_start").notNull(),
+    hours: doublePrecision("hours").notNull(),
+  },
+  (t) => [
+    unique("capacity_week").on(t.workspaceId, t.userId, t.weekStart),
+    check("capacity_hours_range", sql`${t.hours} >= 0 and ${t.hours} <= 168`),
+    foreignKey({
+      columns: [t.workspaceId, t.userId],
+      foreignColumns: [memberships.workspaceId, memberships.userId],
+    }),
+  ],
+);
+export const recurringTasks = pgTable(
+  "recurring_task",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    projectId: text("project_id").notNull(),
+    name: text("name").notNull(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id),
+    definition: jsonb("definition")
+      .$type<import("@/lib/planning/model").RecurringDefinition>()
+      .notNull(),
+    nextDate: text("next_date").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("recurring_scope").on(t.workspaceId, t.id),
+    foreignKey({
+      columns: [t.workspaceId, t.projectId],
+      foreignColumns: [projects.workspaceId, projects.id],
+    }),
+    index("recurring_due").on(t.enabled, t.nextDate),
+  ],
+);
+export const recurringRuns = pgTable(
+  "recurring_run",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    recurringId: text("recurring_id").notNull(),
+    scheduledFor: text("scheduled_for").notNull(),
+    taskIds: jsonb("task_ids").$type<string[]>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("recurring_occurrence").on(t.recurringId, t.scheduledFor),
+    foreignKey({
+      columns: [t.workspaceId, t.recurringId],
+      foreignColumns: [recurringTasks.workspaceId, recurringTasks.id],
+    }),
+  ],
+);
+export const jobRuns = pgTable("job_run", {
+  id: text("id").primaryKey(),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  finishedAt: timestamp("finished_at"),
+  result: jsonb("result").$type<Record<string, number>>().notNull().default({}),
 });

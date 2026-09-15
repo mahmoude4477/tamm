@@ -26,6 +26,7 @@ jobs:
       BETTER_AUTH_SECRET: ci-only-non-production-secret-at-least-32-characters
       DATABASE_URL: postgresql://tamm:test-only-password@localhost:5432/tamm
       ALLOW_REGISTRATION: "true"
+      JOBS_SECRET: "ci-only-job-token-at-least-32-characters"
       MAIL_TRANSPORT: "file"
       ALLOW_FILE_MAIL: "true"
       MAIL_DIRECTORY: /tmp/tamm-test-mail
@@ -50,6 +51,7 @@ jobs:
           done
           node scripts/integration.mjs
           node scripts/auth-integration.mjs
+          node scripts/planning-integration.mjs
       - name: Install browser
         run: npx playwright install --with-deps chromium
       - name: Browser workflows

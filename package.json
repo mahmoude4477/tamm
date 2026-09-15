@@ -1,6 +1,6 @@
 {
   "name": "tamm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -13,13 +13,13 @@
     "db:push": "drizzle-kit push",
     "format": "prettier --write src tests scripts e2e playwright.config.ts",
     "format:check": "prettier --check src tests scripts e2e playwright.config.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "jobs": "node --env-file-if-exists=.env.local scripts/jobs.mjs"
   },
   "dependencies": {
+    "@base-ui/react": "^1.8.0",
     "@better-auth/drizzle-adapter": "^1.7.4",
     "@better-auth/passkey": "^1.7.4",
-    "@radix-ui/react-dialog": "^1.1.15",
-    "@radix-ui/react-slot": "^1.2.3",
     "@tanstack/react-table": "^8.21.3",
     "better-auth": "^1.7.4",
     "class-variance-authority": "^0.7.1",

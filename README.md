@@ -11,7 +11,7 @@
 
 Tamm is an open-source task and project workspace for internal teams. Plan work, assign it, track transfers, and review the result in a focused interface. Monthly reports describe delivery and workload without assigning employees an arbitrary score.
 
-**V1 is ready for review in [pull request #2](https://github.com/mahmoude4477/tamm/pull/2).** The public demo uses fictional data. It contains no personal profile, organization credentials, or production records.
+**V1.5 adds recurring work, milestones, capacity planning, and delivery analytics.** The public demo uses fictional data. It contains no personal profile, organization credentials, or production records.
 
 ![Tamm workspace overview with fictional projects and tasks](docs/preview.png)
 
@@ -37,8 +37,8 @@ Requirements: **Node.js 22+**, **PostgreSQL 16+**, and npm.
 ```bash
 git clone https://github.com/mahmoude4477/tamm.git
 cd tamm
-# Until PR #2 is merged:
-git switch feat/complete-v1
+# Until the V1.5 pull request is merged:
+git switch feat/v1-5-base-ui
 npm ci
 cp .env.example .env.local
 ```
@@ -58,6 +58,7 @@ Open [localhost:3000](http://localhost:3000). The default development mail trans
 | `/` | Fictional demo; changes disappear on refresh |
 | `/login` | Sign in or register when registration is enabled |
 | `/workspace` | Your persistent workspace |
+| `/board` | Metadata first, 25 tasks per status, load more on demand |
 | `/admin` | Account settings and permission-aware workspace administration |
 | `/invite` | Accept an invitation using the invited email address |
 | `/forgot-password`, `/reset-password` | Account recovery |
@@ -104,18 +105,19 @@ A checked item means implemented and covered by the release validation. Unchecke
 - [x] Additive migrations, deployment instructions, and backup/restore documentation.
 - [x] Final browser, accessibility, and PostgreSQL validation of the complete V1 branch.
 
-## Remaining work
+## V1.5 checklist
 
-### V1.5 — Planning
+- [x] Recurring tasks with automatic generation and preserved history.
+- [x] Milestones and milestone-linked progress.
+- [x] Capacity planning beyond current task counts and effort estimates.
+- [x] Advanced delivery analytics and project health indicators.
+- [x] Database aggregates and incremental board loading for very large workspaces.
+- [x] Scheduled notification delivery and optional upload scanning integration.
 
-- [ ] Recurring tasks with automatic generation and preserved history.
-- [ ] Milestones and milestone-linked progress.
-- [ ] Capacity planning beyond current task counts and effort estimates.
-- [ ] Advanced delivery analytics and project health indicators.
-- [ ] Database aggregates and incremental board loading for very large workspaces.
-- [ ] Scheduled notification delivery and optional upload scanning integration.
+- [x] Base UI button/dialog primitives and RTL direction provider, with shadcn configuration.
+- [ ] Final V1.5 PostgreSQL and browser validation.
 
-### V2 — Extensibility
+## Remaining work — V2
 
 - [ ] Configurable custom fields.
 - [ ] Timers, manual time entries, and time reports.
@@ -124,9 +126,15 @@ A checked item means implemented and covered by the release validation. Unchecke
 - [ ] Optional Hijri date display.
 - [ ] Optional AI drafting, summaries, and planning assistance.
 
+### Run the scheduled worker
+
+Set a random `JOBS_SECRET` (at least 32 characters), then run `npm run jobs` beside the app, or schedule `npm run jobs -- --once` each minute. The worker generates due recurring tasks and inbox reminders; it sends email only for members who opt in. PostgreSQL coordinates concurrent workers, so no queue service is required.
+
+Optional ClamAV scanning uses `CLAMAV_HOST` and `CLAMAV_PORT`. When configured, uploads are accepted only after a clean scan; an unavailable scanner rejects the upload. See the operating guide for setup and delivery guarantees.
+
 ## For contributors and reviewers
 
-**Stack:** Next.js App Router · React · TypeScript · Tailwind CSS · Radix/shadcn-style primitives · Better Auth · PostgreSQL · Drizzle · Zod · TanStack Table.
+**Stack:** Next.js App Router · React · TypeScript · Tailwind CSS · shadcn/ui with Base UI · Better Auth · PostgreSQL · Drizzle · Zod · TanStack Table.
 
 | Location | Responsibility |
 | --- | --- |
@@ -143,7 +151,7 @@ A checked item means implemented and covered by the release validation. Unchecke
 
 All product copy starts in `en.json`. To add another language, create a matching dictionary, register it in `src/lib/i18n.ts`, and set its direction. Missing translations fall back to English. User-authored task and project content is preserved in its original language.
 
-Workspace commands run under a workspace row lock and save changed records with their audit entry in the same transaction. Composite foreign keys enforce key workspace boundaries. The paginated table uses bounded database queries; the board, reports, and dependency engine still use a workspace snapshot. See the operational notes before sizing a deployment.
+Workspace commands run under a workspace row lock and save changed records with their audit entry in the same transaction. Composite foreign keys enforce key workspace boundaries. The paginated table uses bounded database queries; the V1.5 board uses paginated queries and delivery analytics use database aggregates. Detailed editing, the original overview/monthly reports, and planning configuration still use a workspace snapshot. See the operational notes before sizing a deployment.
 
 ```bash
 npm run typecheck
@@ -153,11 +161,12 @@ npm run build
 # Against a disposable, configured database and a running server:
 node scripts/integration.mjs
 node scripts/auth-integration.mjs
+node scripts/planning-integration.mjs
 npx playwright install chromium
 RUN_AUTH_E2E=true npm run test:e2e
 ```
 
-V1 validation passes type checking, 21 domain/localization tests, PostgreSQL migrations and integration flows, the production build, and 4 browser checks covering work management, Arabic/mobile navigation, account/passkey setup, and overview accessibility. CI runs these checks for changes. Integration fixtures use `example.com` accounts and local file email delivery.
+V1 validation passed type checking, 21 domain/localization tests, PostgreSQL migrations and integration flows, the production build, and 4 browser checks covering work management, Arabic/mobile navigation, account/passkey setup, and overview accessibility. CI runs these checks for changes. Integration fixtures use `example.com` accounts and local file email delivery.
 
 The interface follows the principles in [Better UI](https://skills.sh/jakubkrehel/skills/better-ui) and [Emil Design Engineering](https://skills.sh/emilkowalski/skills/emil-design-eng): clear hierarchy, keyboard access, restrained motion, and useful states.
 

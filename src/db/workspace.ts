@@ -8,6 +8,7 @@ export async function loadWorkspace(
   tx: Transaction,
   workspaceId: string,
   currentUserId: string,
+  content: "full" | "metadata" = "full",
 ): Promise<Workspace> {
   const [row] = await tx
     .select()
@@ -45,26 +46,35 @@ export async function loadWorkspace(
     .select()
     .from(s.projectMembers)
     .where(eq(s.projectMembers.workspaceId, workspaceId));
-  const tasks = await tx
-    .select()
-    .from(s.tasks)
-    .where(eq(s.tasks.workspaceId, workspaceId));
-  const deps = await tx
-    .select()
-    .from(s.taskDependencies)
-    .where(eq(s.taskDependencies.workspaceId, workspaceId));
+  const tasks =
+    content === "metadata"
+      ? []
+      : await tx
+          .select()
+          .from(s.tasks)
+          .where(eq(s.tasks.workspaceId, workspaceId));
+  const deps =
+    content === "metadata"
+      ? []
+      : await tx
+          .select()
+          .from(s.taskDependencies)
+          .where(eq(s.taskDependencies.workspaceId, workspaceId));
   return {
-    attachmentTaskIds: (
-      await tx
-        .select({ taskId: s.attachments.taskId })
-        .from(s.attachments)
-        .where(
-          and(
-            eq(s.attachments.workspaceId, workspaceId),
-            isNull(s.attachments.deletedAt),
-          ),
-        )
-    ).flatMap((row) => (row.taskId ? [row.taskId] : [])),
+    attachmentTaskIds:
+      content === "metadata"
+        ? []
+        : (
+            await tx
+              .select({ taskId: s.attachments.taskId })
+              .from(s.attachments)
+              .where(
+                and(
+                  eq(s.attachments.workspaceId, workspaceId),
+                  isNull(s.attachments.deletedAt),
+                ),
+              )
+          ).flatMap((row) => (row.taskId ? [row.taskId] : [])),
     id: row.id,
     name: row.name,
     currentUserId,
@@ -120,27 +130,30 @@ export async function loadWorkspace(
       })
       .from(s.departments)
       .where(eq(s.departments.workspaceId, workspaceId)),
-    events: await tx
-      .select({
-        id: s.activityEvents.id,
-        taskId: s.activityEvents.taskId,
-        actorId: s.activityEvents.actorId,
-        action: s.activityEvents.action,
-        projectId: s.activityEvents.projectId,
-        previousStatusId: s.activityEvents.previousStatusId,
-        newStatusId: s.activityEvents.newStatusId,
-        text: s.activityEvents.text,
-        createdAt: s.activityEvents.createdAt,
-        previousAssigneeId: s.activityEvents.previousAssigneeId,
-        newAssigneeId: s.activityEvents.newAssigneeId,
-        parentEventId: s.activityEvents.parentEventId,
-        mentionedIds: s.activityEvents.mentionedIds,
-        editedAt: s.activityEvents.editedAt,
-        deletedAt: s.activityEvents.deletedAt,
-      })
-      .from(s.activityEvents)
-      .where(eq(s.activityEvents.workspaceId, workspaceId))
-      .orderBy(asc(s.activityEvents.createdAt)),
+    events:
+      content === "metadata"
+        ? []
+        : await tx
+            .select({
+              id: s.activityEvents.id,
+              taskId: s.activityEvents.taskId,
+              actorId: s.activityEvents.actorId,
+              action: s.activityEvents.action,
+              projectId: s.activityEvents.projectId,
+              previousStatusId: s.activityEvents.previousStatusId,
+              newStatusId: s.activityEvents.newStatusId,
+              text: s.activityEvents.text,
+              createdAt: s.activityEvents.createdAt,
+              previousAssigneeId: s.activityEvents.previousAssigneeId,
+              newAssigneeId: s.activityEvents.newAssigneeId,
+              parentEventId: s.activityEvents.parentEventId,
+              mentionedIds: s.activityEvents.mentionedIds,
+              editedAt: s.activityEvents.editedAt,
+              deletedAt: s.activityEvents.deletedAt,
+            })
+            .from(s.activityEvents)
+            .where(eq(s.activityEvents.workspaceId, workspaceId))
+            .orderBy(asc(s.activityEvents.createdAt)),
   };
 }
 // Commands run under a workspace row lock. Only changed rows are written.
@@ -282,6 +295,20 @@ export async function saveWorkspace(
         );
   }
   const updates = changed(next.tasks, previous?.tasks);
+  for (const task of updates)
+    if (
+      previous?.tasks.some(
+        (t) => t.id === task.id && t.projectId !== task.projectId,
+      )
+    )
+      await tx
+        .delete(s.milestoneTasks)
+        .where(
+          and(
+            eq(s.milestoneTasks.workspaceId, workspaceId),
+            eq(s.milestoneTasks.taskId, task.id),
+          ),
+        );
   for (const t of updates) {
     const { dependencyIds, parentId, ...record } = t;
     await tx
