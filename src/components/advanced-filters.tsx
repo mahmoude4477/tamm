@@ -1,4 +1,9 @@
 "use client";
+import { readRequest } from "@/lib/read-request";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FormSelect, SelectOption } from "@/components/ui/form-select";
+
 import { useEffect, useState } from "react";
 import type { Workspace } from "@/lib/types";
 import type { TaskFilters } from "@/lib/task-filters";
@@ -17,6 +22,7 @@ export function AdvancedFilters({
 }) {
   const en = useMessages();
 
+  const [open, setOpen] = useState(false);
   const [items, setItems] = useState<
       { id: string; name: string; filters: TaskFilters }[]
     >([]),
@@ -24,43 +30,46 @@ export function AdvancedFilters({
   const url = `/api/views?workspaceId=${encodeURIComponent(w.id)}`;
   async function refresh() {
     if (demo) return;
-    const r = await fetch(url);
+    const r = await readRequest(url);
     if (!r.ok) throw Error();
     setItems((await r.json()).items);
   }
   useEffect(() => {
-    refresh().catch(() => setMessage(en.common.error));
-  }, [url, demo]);
+    if (open) refresh().catch(() => setMessage(en.common.error));
+  }, [url, demo, open]);
   const set = (key: string, v: string | boolean) =>
     onChange({ ...value, [key]: v });
   return (
-    <details className="advanced-filters">
+    <details
+      className="advanced-filters"
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
       <summary>{en.views.filters}</summary>
       <div className="form-grid">
         {(["team", "department", "creator"] as const).map((key) => (
           <label key={key}>
             {en.views[key]}
-            <select
+            <FormSelect
               value={value[key] ?? ""}
-              onChange={(e) => set(key, e.target.value)}
+              onValueChange={(value) => set(key, value)}
             >
-              <option value="">{en.admin.all}</option>
+              <SelectOption value="">{en.admin.all}</SelectOption>
               {(key === "team"
                 ? w.teams
                 : key === "department"
                   ? w.departments
                   : w.members
               ).map((i) => (
-                <option key={i.id} value={i.id}>
+                <SelectOption key={i.id} value={i.id}>
                   {i.name}
-                </option>
+                </SelectOption>
               ))}
-            </select>
+            </FormSelect>
           </label>
         ))}
         <label>
           {en.views.tagFilter}
-          <input
+          <Input
             value={value.tag ?? ""}
             onChange={(e) => set("tag", e.target.value)}
           />
@@ -68,7 +77,7 @@ export function AdvancedFilters({
         {(["from", "to"] as const).map((key) => (
           <label key={key}>
             {en.views[key]}
-            <input
+            <Input
               type="date"
               value={value[key] ?? ""}
               onChange={(e) => set(key, e.target.value)}
@@ -78,10 +87,9 @@ export function AdvancedFilters({
       </div>
       {(["overdue", "dependency", "attachment"] as const).map((key) => (
         <label className="checklist-item" key={key}>
-          <input
-            type="checkbox"
+          <Checkbox
             checked={value[key] ?? false}
-            onChange={(e) => set(key, e.target.checked)}
+            onCheckedChange={(checked) => set(key, checked)}
           />
           {en.views[key]}
         </label>
@@ -111,7 +119,7 @@ export function AdvancedFilters({
           }
         }}
       >
-        <input
+        <Input
           name="name"
           aria-label={en.views.name}
           placeholder={en.views.name}

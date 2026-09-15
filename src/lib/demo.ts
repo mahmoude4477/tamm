@@ -1,4 +1,4 @@
-import en from "@/messages/en.json";
+import en from "../messages/en.json";
 import type { Workspace, Task } from "./types";
 export function createWorkspace(
   id: string,

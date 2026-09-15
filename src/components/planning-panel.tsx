@@ -1,4 +1,10 @@
 "use client";
+import { taskLabel } from "@/lib/task-label";
+import { readRequest } from "@/lib/read-request";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FormSelect, SelectOption } from "@/components/ui/form-select";
+
 import { useEffect, useState } from "react";
 import type { Workspace } from "@/lib/types";
 import { useDates, useLocale, useMessages } from "./locale-provider";
@@ -66,7 +72,7 @@ export function PlanningPanel({
   const url = `/api/planning?workspaceId=${encodeURIComponent(w.id)}&week=${week}`;
   async function refresh() {
     if (demo) return;
-    const r = await fetch(url);
+    const r = await readRequest(url);
     if (!r.ok) throw Error();
     setData(await r.json());
   }
@@ -203,7 +209,7 @@ export function PlanningPanel({
                   <h2>{editing ? p.edit : p.create}</h2>
                   <label>
                     {p.name}
-                    <input
+                    <Input
                       name="name"
                       required
                       maxLength={120}
@@ -212,24 +218,24 @@ export function PlanningPanel({
                   </label>
                   <label>
                     {p.project}
-                    <select
+                    <FormSelect
                       aria-label={p.project}
                       value={project}
                       disabled={!!editing}
-                      onChange={(e) => setProject(e.target.value)}
+                      onValueChange={(value) => setProject(value)}
                     >
                       {w.projects
                         .filter((p) => !p.archived && !p.deletedAt)
                         .map((p) => (
-                          <option key={p.id} value={p.id}>
+                          <SelectOption key={p.id} value={p.id}>
                             {p.name}
-                          </option>
+                          </SelectOption>
                         ))}
-                    </select>
+                    </FormSelect>
                   </label>
                   <label>
                     {p.dueDate}
-                    <input
+                    <Input
                       name="dueDate"
                       type="date"
                       required
@@ -238,11 +244,10 @@ export function PlanningPanel({
                   </label>
                   <label>
                     {p.tasks}
-                    <select
+                    <FormSelect
                       aria-label={p.tasks}
                       multiple
                       name="tasks"
-                      size={8}
                       defaultValue={editing?.taskIds ?? []}
                     >
                       {w.tasks
@@ -257,11 +262,11 @@ export function PlanningPanel({
                             ),
                         )
                         .map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.title}
-                          </option>
+                          <SelectOption key={t.id} value={t.id}>
+                            {taskLabel(w, t)}
+                          </SelectOption>
                         ))}
-                    </select>
+                    </FormSelect>
                   </label>
                   <Button disabled={busy || !project}>{p.save}</Button>
                   {editing && (
@@ -354,36 +359,36 @@ export function PlanningPanel({
                   <p>{p.scheduleSnapshot}</p>
                   <label>
                     {p.name}
-                    <input name="name" required maxLength={120} />
+                    <Input name="name" required maxLength={120} />
                   </label>
                   <label>
                     {p.sourceTask}
-                    <select name="taskId" required>
+                    <FormSelect name="taskId" required>
                       {w.tasks
                         .filter(
                           (t) => !t.deletedAt && !t.archived && !t.parentId,
                         )
                         .map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.title}
-                          </option>
+                          <SelectOption key={t.id} value={t.id}>
+                            {taskLabel(w, t)}
+                          </SelectOption>
                         ))}
-                    </select>
+                    </FormSelect>
                   </label>
                   <div className="form-grid">
                     <label>
                       {p.frequency}
-                      <select name="frequency">
+                      <FormSelect name="frequency">
                         {(["day", "week", "month"] as const).map((v) => (
-                          <option key={v} value={v}>
+                          <SelectOption key={v} value={v}>
                             {p[v]}
-                          </option>
+                          </SelectOption>
                         ))}
-                      </select>
+                      </FormSelect>
                     </label>
                     <label>
                       {p.interval}
-                      <input
+                      <Input
                         type="number"
                         name="interval"
                         defaultValue={1}
@@ -394,7 +399,7 @@ export function PlanningPanel({
                     </label>
                     <label>
                       {p.anchorDate}
-                      <input
+                      <Input
                         type="date"
                         name="anchorDate"
                         defaultValue={today()}
@@ -403,7 +408,7 @@ export function PlanningPanel({
                     </label>
                     <label>
                       {p.endDate}
-                      <input type="date" name="endDate" />
+                      <Input type="date" name="endDate" />
                     </label>
                   </div>
                   <p>
@@ -418,7 +423,7 @@ export function PlanningPanel({
             <section>
               <label className="planning-week">
                 {p.weekOf}
-                <input
+                <Input
                   type="date"
                   value={week}
                   onChange={(e) =>
@@ -445,10 +450,9 @@ export function PlanningPanel({
                     <legend>{p.workingDays}</legend>
                     {Array.from({ length: 7 }, (_, i) => (
                       <label key={i}>
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           name="days"
-                          value={i}
+                          value={String(i)}
                           defaultChecked={data.capacity!.workingDays.includes(
                             i,
                           )}
@@ -508,7 +512,7 @@ export function PlanningPanel({
                                 });
                               }}
                             >
-                              <input
+                              <Input
                                 type="number"
                                 name="hours"
                                 min={0}

@@ -1,14 +1,13 @@
 "use client";
+import { Input } from "@/components/ui/input";
+
+import { AuthHeader } from "@/components/auth-header";
 import { useState } from "react";
 import Link from "next/link";
 import { Check, ArrowRight } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import {
-  LocalePicker,
-  useMessages,
-  useDates,
-} from "@/components/locale-provider";
+import { useMessages } from "@/components/locale-provider";
 export default function Login() {
   const en = useMessages();
 
@@ -55,25 +54,29 @@ export default function Login() {
   }
   return (
     <main className="auth-page">
-      <LocalePicker />
-      <Link className="brand" href="/">
-        <span className="brand-mark">
-          <Check />
-        </span>
-        {en.brand.name}
-        <span className="arabic">{en.brand.arabic}</span>
-      </Link>
+      <AuthHeader />
       <div className="auth-grid">
         <section className="auth-intro">
           <span className="eyebrow">{en.brand.tagline}</span>
           <h1>{en.auth.title}</h1>
           <p>{en.auth.subtitle}</p>
-          <div className="auth-art" aria-hidden>
-            <div>
-              <Check size={64} />
+          <div className="auth-preview" aria-hidden="true">
+            <div className="auth-preview-heading">
+              <span className="brand-mark">
+                <Check size={18} />
+              </span>
+              <strong>{en.nav.myTasks}</strong>
+              <span>{en.demo.tasks.length}</span>
             </div>
-            <span />
-            <span />
+            {en.demo.tasks.slice(0, 3).map((task, index) => (
+              <div className="auth-preview-row" key={task}>
+                <span className={`preview-status preview-status-${index}`}>
+                  <Check size={12} />
+                </span>
+                <span>{task}</span>
+                <small>{en.demo.statuses[index + 1]}</small>
+              </div>
+            ))}
           </div>
         </section>
         <form className="auth-form" onSubmit={submit}>
@@ -81,16 +84,16 @@ export default function Login() {
           {signup && (
             <label>
               {en.auth.name}
-              <input name="name" autoComplete="name" required maxLength={100} />
+              <Input name="name" autoComplete="name" required maxLength={100} />
             </label>
           )}
           <label>
             {en.auth.email}
-            <input name="email" type="email" autoComplete="email" required />
+            <Input name="email" type="email" autoComplete="email" required />
           </label>
           <label>
             {en.auth.password}
-            <input
+            <Input
               name="password"
               type="password"
               autoComplete={signup ? "new-password" : "current-password"}

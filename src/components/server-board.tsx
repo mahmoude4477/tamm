@@ -1,4 +1,6 @@
 "use client";
+import { readRequest } from "@/lib/read-request";
+import { statusLabel } from "@/lib/status-label";
 import { useEffect, useState, useRef } from "react";
 import type { Task, Workspace } from "@/lib/types";
 import type { TaskFilters } from "@/lib/task-filters";
@@ -9,11 +11,13 @@ import { Avatar, StatusDot } from "./workspace-shared";
 import { Button } from "./ui/button";
 export function ServerBoard({
   w,
+  dataRevision = 0,
   filters,
   onTask,
   send,
 }: {
   w: Workspace;
+  dataRevision?: number;
   filters: TaskFilters & { scope?: string };
   onTask: (id: string) => void;
   send: (c: Command) => Promise<boolean>;
@@ -49,7 +53,7 @@ export function ServerBoard({
       });
       for (const [k, v] of Object.entries(JSON.parse(serialized)))
         if (v !== "" && v != null && k !== "status") q.set(k, String(v));
-      const r = await fetch(`/api/tasks?${q}`, { signal });
+      const r = await readRequest(`/api/tasks?${q}`, { signal });
       if (!r.ok) throw Error();
       const data = await r.json();
       if (generation.current === token)
@@ -86,11 +90,38 @@ export function ServerBoard({
     const token = ++generation.current;
     setColumns({});
     setError("");
-    for (const status of w.statuses)
-      if (!filters.status || filters.status === status.id)
-        load(status.id, 0, controller.signal, token);
+    const q = new URLSearchParams({
+      workspaceId: w.id,
+      board: "true",
+      size: "25",
+      sort: "dueDate",
+    });
+    for (const [key, value] of Object.entries(JSON.parse(serialized)))
+      if (value !== "" && value != null) q.set(key, String(value));
+    setLoading(Object.fromEntries(w.statuses.map((s) => [s.id, true])));
+    readRequest(`/api/tasks?${q}`, { signal: controller.signal })
+      .then(async (r) => {
+        if (!r.ok) throw Error();
+        const data = await r.json();
+        if (generation.current === token && !controller.signal.aborted)
+          setColumns(data.columns);
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError" && generation.current === token)
+          setError(en.common.error);
+      })
+      .finally(() => {
+        if (generation.current === token && !controller.signal.aborted)
+          setLoading({});
+      });
     return () => controller.abort();
-  }, [w.id, serialized, revision, w.statuses.map((s) => s.id).join(",")]);
+  }, [
+    w.id,
+    serialized,
+    revision,
+    dataRevision,
+    w.statuses.map((s) => s.id).join(","),
+  ]);
   useEffect(() => {
     const refresh = () => setRevision((v) => v + 1);
     window.addEventListener("tamm:refresh", refresh);
@@ -113,21 +144,18 @@ export function ServerBoard({
                   e.preventDefault();
                   const task = dragged.current;
                   dragged.current = null;
-                  if (
-                    task &&
-                    (await send({
+                  if (task)
+                    await send({
                       type: "task.update",
                       id: task.id,
                       version: task.version,
                       data: { statusId: status.id },
-                    }))
-                  )
-                    setRevision((v) => v + 1);
+                    });
                 }}
               >
                 <div className="column-header">
                   <StatusDot w={w} id={status.id} />
-                  <h3>{status.name}</h3>
+                  <h3>{statusLabel(status, en)}</h3>
                   <span>{column?.total ?? "…"}</span>
                 </div>
                 <div className="column-tasks">

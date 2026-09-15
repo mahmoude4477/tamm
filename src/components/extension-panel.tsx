@@ -1,4 +1,11 @@
 "use client";
+import { taskLabel } from "@/lib/task-label";
+import { readRequest } from "@/lib/read-request";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { FormSelect, SelectOption } from "@/components/ui/form-select";
+
 import { useEffect, useState } from "react";
 import type { Workspace } from "@/lib/types";
 import type {
@@ -74,7 +81,7 @@ export function ExtensionPanel({
     if (demo) return;
     const controller = new AbortController();
     setError("");
-    fetch(
+    readRequest(
       `/api/extensions?${new URLSearchParams({ workspaceId: w.id, ...range })}`,
       { signal: controller.signal },
     )
@@ -122,13 +129,13 @@ export function ExtensionPanel({
   function projects(all = false) {
     return (
       <>
-        {all && <option value="">{p.allProjects}</option>}
+        {all && <SelectOption value="">{p.allProjects}</SelectOption>}
         {w.projects
           .filter((p) => !p.archived && !p.deletedAt)
           .map((pr) => (
-            <option key={pr.id} value={pr.id}>
+            <SelectOption key={pr.id} value={pr.id}>
               {pr.name}
-            </option>
+            </SelectOption>
           ))}
       </>
     );
@@ -208,18 +215,18 @@ export function ExtensionPanel({
           {["fields", "time"].includes(tab) && !fixedTask && (
             <label>
               {p.task}
-              <select
+              <FormSelect
                 aria-label={p.task}
                 value={taskId}
-                onChange={(e) => setTask(e.target.value)}
+                onValueChange={(value) => setTask(value)}
               >
-                <option value="">{p.selectTask}</option>
+                <SelectOption value="">{p.selectTask}</SelectOption>
                 {tasks.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title}
-                  </option>
+                  <SelectOption key={t.id} value={t.id}>
+                    {taskLabel(w, t)}
+                  </SelectOption>
                 ))}
-              </select>
+              </FormSelect>
             </label>
           )}
           {tab === "fields" && (
@@ -282,7 +289,7 @@ export function ExtensionPanel({
                     <h2>{editField ? p.edit : p.create}</h2>
                     <label>
                       {p.name}
-                      <input
+                      <Input
                         name="name"
                         required
                         maxLength={100}
@@ -291,34 +298,34 @@ export function ExtensionPanel({
                     </label>
                     <label>
                       {p.kind}
-                      <select
+                      <FormSelect
                         name="kind"
                         disabled={!!editField}
-                        onChange={(e) => setFieldKind(e.target.value)}
+                        onValueChange={(value) => setFieldKind(value)}
                         aria-label={p.kind}
                         defaultValue={editField?.kind || "text"}
                       >
                         {fieldKinds.map((k) => (
-                          <option key={k} value={k}>
+                          <SelectOption key={k} value={k}>
                             {p[k]}
-                          </option>
+                          </SelectOption>
                         ))}
-                      </select>
+                      </FormSelect>
                     </label>
                     <label>
                       {p.project}
-                      <select
+                      <FormSelect
                         name="project"
                         aria-label={p.project}
                         disabled={!!editField}
                         defaultValue={editField?.projectId || ""}
                       >
                         {projects(true)}
-                      </select>
+                      </FormSelect>
                     </label>
                     <label hidden={fieldKind !== "dropdown"}>
                       {p.options}
-                      <textarea
+                      <Textarea
                         name="options"
                         defaultValue={editField?.options.join("\n")}
                       />
@@ -437,7 +444,7 @@ export function ExtensionPanel({
                     <h2>{timeEdit ? p.edit : p.manual}</h2>
                     <label>
                       {p.startedAt}
-                      <input
+                      <Input
                         required
                         name="startedAt"
                         type="datetime-local"
@@ -452,7 +459,7 @@ export function ExtensionPanel({
                     </label>
                     <label>
                       {p.minutes}
-                      <input
+                      <Input
                         required
                         name="minutes"
                         type="number"
@@ -463,7 +470,7 @@ export function ExtensionPanel({
                     </label>
                     <label>
                       {p.note}
-                      <input
+                      <Input
                         name="note"
                         maxLength={2000}
                         defaultValue={timeEdit?.note}
@@ -496,7 +503,7 @@ export function ExtensionPanel({
                 >
                   <label>
                     {p.from}
-                    <input
+                    <Input
                       name="from"
                       type="date"
                       required
@@ -505,7 +512,7 @@ export function ExtensionPanel({
                   </label>
                   <label>
                     {p.to}
-                    <input
+                    <Input
                       name="to"
                       type="date"
                       required
@@ -656,29 +663,31 @@ export function ExtensionPanel({
               >
                 <label>
                   {p.name}
-                  <input name="name" required maxLength={100} />
+                  <Input name="name" required maxLength={100} />
                 </label>
                 <label>
                   {p.project}
-                  <select name="project" aria-label={p.project}>
+                  <FormSelect name="project" aria-label={p.project}>
                     {projects(true)}
-                  </select>
+                  </FormSelect>
                 </label>
                 <label>
                   {p.scope}
-                  <select name="scope" aria-label={p.scope}>
-                    <option value="calendar">{p.calendarOnly}</option>
+                  <FormSelect name="scope" aria-label={p.scope}>
+                    <SelectOption value="calendar">
+                      {p.calendarOnly}
+                    </SelectOption>
                     {admin && (
                       <>
-                        <option value="read">{p.readOnly}</option>
-                        <option value="write">{p.readWrite}</option>
+                        <SelectOption value="read">{p.readOnly}</SelectOption>
+                        <SelectOption value="write">{p.readWrite}</SelectOption>
                       </>
                     )}
-                  </select>
+                  </FormSelect>
                 </label>
                 <label>
                   {p.days}
-                  <input
+                  <Input
                     name="days"
                     type="number"
                     min={1}
@@ -694,7 +703,7 @@ export function ExtensionPanel({
                   <p>{p.secretHint}</p>
                   <label>
                     {secret.calendar ? p.calendarUrl : p.secret}
-                    <input
+                    <Input
                       readOnly
                       value={
                         secret.calendar
@@ -752,17 +761,17 @@ export function ExtensionPanel({
                   >
                     <label>
                       {p.name}
-                      <input name="name" required maxLength={100} />
+                      <Input name="name" required maxLength={100} />
                     </label>
                     <label>
                       {p.project}
-                      <select name="project" aria-label={p.project}>
+                      <FormSelect name="project" aria-label={p.project}>
                         {projects()}
-                      </select>
+                      </FormSelect>
                     </label>
                     <label>
                       {p.url}
-                      <input name="url" type="url" required maxLength={2000} />
+                      <Input name="url" type="url" required maxLength={2000} />
                     </label>
                     <Button disabled={busy}>{p.create}</Button>
                   </form>
@@ -882,26 +891,26 @@ export function ExtensionPanel({
                   >
                     <label>
                       {p.project}
-                      <select name="project" aria-label={p.project}>
+                      <FormSelect name="project" aria-label={p.project}>
                         {projects()}
-                      </select>
+                      </FormSelect>
                     </label>
                     <label>
                       {p.mode}
-                      <select name="mode" aria-label={p.mode}>
+                      <FormSelect name="mode" aria-label={p.mode}>
                         {(["draft", "summary", "plan"] as const).map((m) => (
-                          <option key={m} value={m}>
+                          <SelectOption key={m} value={m}>
                             {p[m]}
-                          </option>
+                          </SelectOption>
                         ))}
-                      </select>
+                      </FormSelect>
                     </label>
                     <label>
                       {p.prompt}
-                      <textarea name="prompt" required maxLength={4000} />
+                      <Textarea name="prompt" required maxLength={4000} />
                     </label>
                     <label className="extension-checkbox">
-                      <input type="checkbox" required />
+                      <Checkbox required />
                       {p.aiConsent}
                     </label>
                     <Button
@@ -917,7 +926,7 @@ export function ExtensionPanel({
                     <div className="planning-card">
                       <label>
                         {p.result}
-                        <textarea
+                        <Textarea
                           value={result}
                           onChange={(e) => setResult(e.target.value)}
                           rows={14}
@@ -989,32 +998,33 @@ function FieldValue({
       <label>
         {field.name}
         {field.kind === "checkbox" ? (
-          <input
-            type="checkbox"
+          <Checkbox
             disabled={disabled}
             checked={input === true}
-            onChange={(e) => setInput(e.target.checked)}
+            onCheckedChange={(checked) => setInput(checked)}
           />
         ) : field.kind === "dropdown" || field.kind === "user" ? (
-          <select
+          <FormSelect
             disabled={disabled}
             aria-label={field.name}
             value={String(input)}
-            onChange={(e) => setInput(e.target.value)}
+            onValueChange={(value) => setInput(value)}
           >
-            <option value="">{p.none}</option>
+            <SelectOption value="">{p.none}</SelectOption>
             {field.kind === "dropdown"
-              ? field.options.map((o) => <option key={o}>{o}</option>)
+              ? field.options.map((o) => (
+                  <SelectOption key={o}>{o}</SelectOption>
+                ))
               : members
                   .filter((m) => m.active !== false)
                   .map((m) => (
-                    <option key={m.id} value={m.id}>
+                    <SelectOption key={m.id} value={m.id}>
                       {m.name}
-                    </option>
+                    </SelectOption>
                   ))}
-          </select>
+          </FormSelect>
         ) : (
-          <input
+          <Input
             disabled={disabled}
             type={
               field.kind === "number"

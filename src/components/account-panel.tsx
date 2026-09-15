@@ -1,9 +1,15 @@
 "use client";
+import { Input } from "@/components/ui/input";
+
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "./ui/button";
-import { useMessages, useDates } from "@/components/locale-provider";
+import {
+  DatePreference,
+  useMessages,
+  useDates,
+} from "@/components/locale-provider";
 export function AccountPanel() {
   const en = useMessages();
 
@@ -51,6 +57,7 @@ export function AccountPanel() {
   return (
     <section className="detail-section">
       <h2>{en.account.title}</h2>
+      <DatePreference />
       <form
         className="editor-form"
         key={session?.user.id}
@@ -67,7 +74,7 @@ export function AccountPanel() {
       >
         <label>
           {en.account.name}
-          <input
+          <Input
             name="name"
             defaultValue={session?.user.name}
             required
@@ -76,7 +83,7 @@ export function AccountPanel() {
         </label>
         <label>
           {en.account.photo}
-          <input
+          <Input
             type="url"
             name="image"
             defaultValue={session?.user.image ?? ""}
@@ -133,7 +140,7 @@ export function AccountPanel() {
       >
         <label>
           {en.account.password}
-          <input
+          <Input
             name="password"
             type="password"
             autoComplete="current-password"
@@ -169,7 +176,7 @@ export function AccountPanel() {
           >
             <label>
               {en.account.code}
-              <input
+              <Input
                 name="code"
                 inputMode="numeric"
                 autoComplete="one-time-code"

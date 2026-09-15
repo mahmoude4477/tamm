@@ -297,6 +297,30 @@ const limited = await api(
   `/api/tasks?workspaceId=${workspaceId}&size=100`,
 );
 assert.ok(limited.payload.items.every((t) => t.projectId === projectId));
+const board = await api(
+  member,
+  `/api/tasks?workspaceId=${workspaceId}&board=true&size=1`,
+);
+assert.ok(Object.keys(board.payload.columns).length > 0);
+for (const [statusId, column] of Object.entries(board.payload.columns)) {
+  assert.ok(column.items.length <= 1);
+  assert.ok(column.total >= column.items.length);
+  assert.ok(
+    column.items.every(
+      (t) => t.projectId === projectId && t.statusId === statusId,
+    ),
+  );
+  const single = await api(
+    member,
+    `/api/tasks?workspaceId=${workspaceId}&status=${statusId}&size=1`,
+  );
+  assert.equal(column.total, single.payload.total);
+}
+const filteredBoard = await api(
+  member,
+  `/api/tasks?workspaceId=${workspaceId}&board=true&search=does-not-match-any-fixture`,
+);
+assert.deepEqual(filteredBoard.payload.columns, {});
 await api(owner, "/api/auth/organization/update-member-role", {
   body: {
     organizationId: workspaceId,

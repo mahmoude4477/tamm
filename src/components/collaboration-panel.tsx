@@ -1,4 +1,10 @@
 "use client";
+import { readRequest } from "@/lib/read-request";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { FormSelect, SelectOption } from "@/components/ui/form-select";
+
 import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import { Button } from "./ui/button";
@@ -37,7 +43,7 @@ export function FilePanel({
   });
   const url = `/api/files?${query}`;
   async function refresh() {
-    const r = await fetch(url);
+    const r = await readRequest(url);
     if (!r.ok) throw Error();
     setFiles((await r.json()).items);
   }
@@ -78,7 +84,7 @@ export function FilePanel({
             >
               <label>
                 {en.collaboration.upload}
-                <input
+                <Input
                   name="file"
                   type="file"
                   accept=".png,.jpg,.jpeg,.pdf,.txt,.csv"
@@ -215,7 +221,7 @@ export function CommentPanel({
                   setEdit(null);
               }}
             >
-              <textarea
+              <Textarea
                 name="text"
                 aria-label={en.collaboration.edit}
                 defaultValue={c.text}
@@ -317,7 +323,7 @@ export function CommentPanel({
           )}
           <label>
             {en.tasks.comments}
-            <textarea
+            <Textarea
               name="text"
               required
               maxLength={10000}
@@ -327,15 +333,15 @@ export function CommentPanel({
           <small>{en.collaboration.markdown}</small>
           <label>
             {en.collaboration.mentions}
-            <select multiple name="mentions">
+            <FormSelect multiple name="mentions">
               {w.members
                 .filter((m) => m.active !== false && m.id !== actor.id)
                 .map((m) => (
-                  <option key={m.id} value={m.id}>
+                  <SelectOption key={m.id} value={m.id}>
                     {m.name}
-                  </option>
+                  </SelectOption>
                 ))}
-            </select>
+            </FormSelect>
           </label>
           <Button disabled={busy}>{en.tasks.post}</Button>
         </form>
@@ -371,7 +377,7 @@ export function Inbox({
     [busy, setBusy] = useState(false);
   const url = `/api/notifications?workspaceId=${encodeURIComponent(w.id)}`;
   async function refresh() {
-    const r = await fetch(url);
+    const r = await readRequest(url);
     if (!r.ok) throw Error();
     const data = await r.json();
     setItems(data.items);
@@ -380,7 +386,10 @@ export function Inbox({
   }
   useEffect(() => {
     refresh().catch(() => setMessage(en.common.error));
-  }, [url, open]);
+  }, [url]);
+  useEffect(() => {
+    if (open) refresh().catch(() => setMessage(en.common.error));
+  }, [open]);
   async function send(body: object) {
     setBusy(true);
     setMessage("");
@@ -456,22 +465,20 @@ export function Inbox({
               }}
             >
               <label className="checklist-item">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={emailEnabled}
-                  onChange={(e) => setEmailEnabled(e.target.checked)}
+                  onCheckedChange={(checked) => setEmailEnabled(checked)}
                 />
                 {en.planning.emailEnabled}
               </label>
               <p>{en.planning.emailHint}</p>
               {kinds.map((kind) => (
                 <label className="checklist-item" key={kind}>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={enabled.includes(kind)}
-                    onChange={(e) =>
+                    onCheckedChange={(checked) =>
                       setEnabled(
-                        e.target.checked
+                        checked
                           ? [...enabled, kind]
                           : enabled.filter((k) => k !== kind),
                       )

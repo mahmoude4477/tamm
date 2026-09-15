@@ -1,4 +1,11 @@
 "use client";
+import { readRequest } from "@/lib/read-request";
+import { statusLabel } from "@/lib/status-label";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { FormSelect, SelectOption } from "@/components/ui/form-select";
+
 import { TransferPanel, TemplatePanel } from "./operations-panel";
 import { useEffect, useState } from "react";
 import { can, permissionKeys } from "@/lib/permissions";
@@ -8,20 +15,16 @@ import { Button } from "./ui/button";
 import { InvitationPanel } from "./organization-panel";
 import { FilePanel } from "./collaboration-panel";
 import { useMessages, useDates, useLocale } from "@/components/locale-provider";
-function MemberOptions({ w }: { w: Workspace }) {
-  const { locale, timezone } = useLocale();
-
-  const en = useMessages();
-
+function memberOptions(w: Workspace, emptyLabel: string) {
   return (
     <>
-      <option value="">{en.collaboration.none}</option>
+      <SelectOption value="">{emptyLabel}</SelectOption>
       {w.members
         .filter((m) => m.active !== false)
         .map((m) => (
-          <option key={m.id} value={m.id}>
+          <SelectOption key={m.id} value={m.id}>
             {m.name}
-          </option>
+          </SelectOption>
         ))}
     </>
   );
@@ -72,12 +75,12 @@ export function AdminPanel({
           >
             <label>
               {en.admin.name}
-              <input name="name" required defaultValue={w.name} />
+              <Input name="name" required defaultValue={w.name} />
             </label>
             <div className="form-grid">
               <label>
                 {en.admin.timezone}
-                <input
+                <Input
                   name="timezone"
                   required
                   defaultValue={w.settings?.timezone ?? "UTC"}
@@ -91,21 +94,21 @@ export function AdminPanel({
               </label>
               <label>
                 {en.admin.transferPolicy}
-                <select
+                <FormSelect
                   name="transferPolicy"
                   defaultValue={w.settings?.transferPolicy ?? "team"}
                 >
                   {Object.entries(en.admin.policies).map(([v, l]) => (
-                    <option key={v} value={v}>
+                    <SelectOption key={v} value={v}>
                       {l}
-                    </option>
+                    </SelectOption>
                   ))}
-                </select>
+                </FormSelect>
               </label>
             </div>
             <label>
               {en.admin.taskTypes}
-              <input
+              <Input
                 name="taskTypes"
                 required
                 defaultValue={(
@@ -145,31 +148,33 @@ export function AdminPanel({
                 >
                   <label>
                     {en.account.role}
-                    <select name="role" defaultValue={m.role}>
+                    <FormSelect name="role" defaultValue={m.role}>
                       {Object.entries(en.team.roles).map(([v, l]) => (
-                        <option key={v} value={v}>
+                        <SelectOption key={v} value={v}>
                           {l}
-                        </option>
+                        </SelectOption>
                       ))}
-                    </select>
+                    </FormSelect>
                   </label>
                   <label>
                     {en.admin.customRole}
-                    <select
+                    <FormSelect
                       name="customRoleId"
                       defaultValue={m.customRoleId ?? ""}
                     >
-                      <option value="">{en.admin.defaultRole}</option>
+                      <SelectOption value="">
+                        {en.admin.defaultRole}
+                      </SelectOption>
                       {w.customRoles?.map((r) => (
-                        <option key={r.id} value={r.id}>
+                        <SelectOption key={r.id} value={r.id}>
                           {r.name}
-                        </option>
+                        </SelectOption>
                       ))}
-                    </select>
+                    </FormSelect>
                   </label>
                   <label>
                     {en.admin.jobTitle}
-                    <input
+                    <Input
                       name="jobTitle"
                       defaultValue={m.jobTitle ?? ""}
                       maxLength={200}
@@ -177,36 +182,38 @@ export function AdminPanel({
                   </label>
                   <label>
                     {en.admin.active}
-                    <input
+                    <Checkbox
                       name="active"
-                      type="checkbox"
+
                       defaultChecked={m.active !== false}
                     />
                   </label>
                   <label>
                     {en.team.team}
-                    <select name="teamId" defaultValue={m.teamId ?? ""}>
-                      <option value="">{en.collaboration.none}</option>
+                    <FormSelect name="teamId" defaultValue={m.teamId ?? ""}>
+                      <SelectOption value="">
+                        {en.collaboration.none}
+                      </SelectOption>
                       {w.teams.map((t) => (
-                        <option key={t.id} value={t.id}>
+                        <SelectOption key={t.id} value={t.id}>
                           {t.name}
-                        </option>
+                        </SelectOption>
                       ))}
-                    </select>
+                    </FormSelect>
                   </label>
                   <label>
                     {en.admin.teams}
-                    <select
+                    <FormSelect
                       name="teams"
                       multiple
                       defaultValue={m.teamIds ?? []}
                     >
                       {w.teams.map((t) => (
-                        <option key={t.id} value={t.id}>
+                        <SelectOption key={t.id} value={t.id}>
                           {t.name}
-                        </option>
+                        </SelectOption>
                       ))}
-                    </select>
+                    </FormSelect>
                   </label>
                   <Button disabled={busy}>{en.common.save}</Button>
                 </form>
@@ -234,27 +241,32 @@ export function AdminPanel({
                 >
                   <label>
                     {en.admin.name}
-                    <input name="name" required defaultValue={t.name} />
+                    <Input name="name" required defaultValue={t.name} />
                   </label>
                   <label>
                     {en.admin.department}
-                    <select
+                    <FormSelect
                       name="departmentId"
                       defaultValue={t.departmentId ?? ""}
                     >
-                      <option value="">{en.collaboration.none}</option>
+                      <SelectOption value="">
+                        {en.collaboration.none}
+                      </SelectOption>
                       {w.departments.map((d) => (
-                        <option key={d.id} value={d.id}>
+                        <SelectOption key={d.id} value={d.id}>
                           {d.name}
-                        </option>
+                        </SelectOption>
                       ))}
-                    </select>
+                    </FormSelect>
                   </label>
                   <label>
                     {en.admin.manager}
-                    <select name="managerId" defaultValue={t.managerId ?? ""}>
-                      <MemberOptions w={w} />
-                    </select>
+                    <FormSelect
+                      name="managerId"
+                      defaultValue={t.managerId ?? ""}
+                    >
+                      {memberOptions(w, en.collaboration.none)}
+                    </FormSelect>
                   </label>
                   <Button disabled={busy}>{en.common.save}</Button>
                 </form>
@@ -281,13 +293,16 @@ export function AdminPanel({
                 >
                   <label>
                     {en.admin.name}
-                    <input name="name" required defaultValue={d.name} />
+                    <Input name="name" required defaultValue={d.name} />
                   </label>
                   <label>
                     {en.admin.manager}
-                    <select name="managerId" defaultValue={d.managerId ?? ""}>
-                      <MemberOptions w={w} />
-                    </select>
+                    <FormSelect
+                      name="managerId"
+                      defaultValue={d.managerId ?? ""}
+                    >
+                      {memberOptions(w, en.collaboration.none)}
+                    </FormSelect>
                   </label>
                   <Button disabled={busy}>{en.common.save}</Button>
                 </form>
@@ -318,7 +333,7 @@ export function AdminPanel({
               >
                 <label>
                   {en.admin.name}
-                  <input
+                  <Input
                     name="name"
                     required
                     defaultValue={r.name}
@@ -329,9 +344,9 @@ export function AdminPanel({
                   <legend>{en.admin.permissions}</legend>
                   {permissionKeys.map((p) => (
                     <label className="checklist-item" key={p}>
-                      <input
+                      <Checkbox
                         name="permissions"
-                        type="checkbox"
+
                         value={p}
                         defaultChecked={r.permissions.includes(p)}
                       />
@@ -354,7 +369,7 @@ export function AdminPanel({
           <h2>{en.settings.workflow}</h2>
           {w.statuses.map((s, index) => (
             <details key={s.id}>
-              <summary>{s.name}</summary>
+              <summary>{statusLabel(s, en)}</summary>
               <form
                 className="editor-form"
                 onSubmit={(e) => {
@@ -372,25 +387,25 @@ export function AdminPanel({
               >
                 <label>
                   {en.admin.name}
-                  <input name="name" required defaultValue={s.name} />
+                  <Input name="name" required defaultValue={s.name} />
                 </label>
                 <label>
                   {en.projects.color}
-                  <input name="color" type="color" defaultValue={s.color} />
+                  <Input name="color" type="color" defaultValue={s.color} />
                 </label>
                 <label>
                   {en.settings.category}
-                  <select name="category" defaultValue={s.category}>
+                  <FormSelect name="category" defaultValue={s.category}>
                     {Object.entries(en.settings.categories).map(([v, l]) => (
-                      <option key={v} value={v}>
+                      <SelectOption key={v} value={v}>
                         {l}
-                      </option>
+                      </SelectOption>
                     ))}
-                  </select>
+                  </FormSelect>
                 </label>
                 <label>
                   {en.admin.nextStatuses}
-                  <select
+                  <FormSelect
                     multiple
                     name="next"
                     defaultValue={s.allowedNextIds ?? []}
@@ -398,11 +413,11 @@ export function AdminPanel({
                     {w.statuses
                       .filter((t) => t.id !== s.id)
                       .map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
+                        <SelectOption key={t.id} value={t.id}>
+                          {statusLabel(t, en)}
+                        </SelectOption>
                       ))}
-                  </select>
+                  </FormSelect>
                 </label>
                 <small>{en.admin.anyTransition}</small>
                 <Button disabled={busy}>{en.common.save}</Button>
@@ -506,11 +521,11 @@ function ProjectSettings({
       >
         <label>
           {en.admin.name}
-          <input name="name" required defaultValue={p.name} />
+          <Input name="name" required defaultValue={p.name} />
         </label>
         <label>
           {en.tasks.description}
-          <textarea
+          <Textarea
             name="description"
             maxLength={5000}
             defaultValue={p.description}
@@ -519,67 +534,69 @@ function ProjectSettings({
         <div className="form-grid">
           <label>
             {en.projects.color}
-            <input type="color" name="color" defaultValue={p.color} />
+            <Input type="color" name="color" defaultValue={p.color} />
           </label>
           <label>
             {en.tasks.priority}
-            <select name="priority" defaultValue={p.priority ?? "medium"}>
+            <FormSelect name="priority" defaultValue={p.priority ?? "medium"}>
               {Object.entries(en.priorities).map(([v, l]) => (
-                <option key={v} value={v}>
+                <SelectOption key={v} value={v}>
                   {l}
-                </option>
+                </SelectOption>
               ))}
-            </select>
+            </FormSelect>
           </label>
           <label>
             {en.admin.owner}
-            <select name="owner" defaultValue={p.ownerId ?? ""}>
-              <MemberOptions w={w} />
-            </select>
+            <FormSelect name="owner" defaultValue={p.ownerId ?? ""}>
+              {memberOptions(w, en.collaboration.none)}
+            </FormSelect>
           </label>
           <label>
             {en.admin.manager}
-            <select name="manager" defaultValue={p.managerId ?? ""}>
-              <MemberOptions w={w} />
-            </select>
+            <FormSelect name="manager" defaultValue={p.managerId ?? ""}>
+              {memberOptions(w, en.collaboration.none)}
+            </FormSelect>
           </label>
           <label>
             {en.admin.start}
-            <input type="date" name="start" defaultValue={p.startDate ?? ""} />
+            <Input type="date" name="start" defaultValue={p.startDate ?? ""} />
           </label>
           <label>
             {en.admin.end}
-            <input type="date" name="end" defaultValue={p.endDate ?? ""} />
+            <Input type="date" name="end" defaultValue={p.endDate ?? ""} />
           </label>
         </div>
         <label>
           {en.admin.lifecycle}
-          <select name="lifecycle" defaultValue={p.lifecycle ?? "planned"}>
+          <FormSelect name="lifecycle" defaultValue={p.lifecycle ?? "planned"}>
             {Object.entries(en.admin.lifecycles).map(([v, l]) => (
-              <option key={v} value={v}>
+              <SelectOption key={v} value={v}>
                 {l}
-              </option>
+              </SelectOption>
             ))}
-          </select>
+          </FormSelect>
         </label>
         <label>
           {en.projects.visibility}
-          <select name="visibility" defaultValue={p.visibility}>
-            <option value="organization">{en.projects.organization}</option>
-            <option value="private">{en.projects.private}</option>
-          </select>
+          <FormSelect name="visibility" defaultValue={p.visibility}>
+            <SelectOption value="organization">
+              {en.projects.organization}
+            </SelectOption>
+            <SelectOption value="private">{en.projects.private}</SelectOption>
+          </FormSelect>
         </label>
         <label>
           {en.projects.members}
-          <select multiple name="members" defaultValue={p.memberIds}>
+          <FormSelect multiple name="members" defaultValue={p.memberIds}>
             {w.members
               .filter((m) => m.active !== false)
               .map((m) => (
-                <option key={m.id} value={m.id}>
+                <SelectOption key={m.id} value={m.id}>
                   {m.name}
-                </option>
+                </SelectOption>
               ))}
-          </select>
+          </FormSelect>
         </label>
         <Button disabled={busy}>{en.common.save}</Button>
       </form>
@@ -659,7 +676,7 @@ function AuditPanel({ w }: { w: Workspace }) {
         actorId: actor,
         ...(more && next ? { before: next } : {}),
       });
-      const r = await fetch(`/api/audit?${q}`);
+      const r = await readRequest(`/api/audit?${q}`);
       if (!r.ok) throw Error();
       const data = await r.json();
       setItems(more ? [...items, ...data.items] : data.items);
@@ -678,18 +695,18 @@ function AuditPanel({ w }: { w: Workspace }) {
       <div className="form-grid">
         <label>
           {en.admin.action}
-          <input value={action} onChange={(e) => setAction(e.target.value)} />
+          <Input value={action} onChange={(e) => setAction(e.target.value)} />
         </label>
         <label>
           {en.admin.actor}
-          <select value={actor} onChange={(e) => setActor(e.target.value)}>
-            <option value="">{en.admin.all}</option>
+          <FormSelect value={actor} onValueChange={(value) => setActor(value)}>
+            <SelectOption value="">{en.admin.all}</SelectOption>
             {w.members.map((m) => (
-              <option key={m.id} value={m.id}>
+              <SelectOption key={m.id} value={m.id}>
                 {m.name}
-              </option>
+              </SelectOption>
             ))}
-          </select>
+          </FormSelect>
         </label>
       </div>
       {items.map((i) => (
