@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Workspace, Task } from "@/lib/types";
 import { useMessages, useLocale, useDates } from "./locale-provider";
 import { Button } from "./ui/button";
@@ -8,7 +8,9 @@ export function TaskCalendar({
   tasks,
   open,
   openProject,
+  demo = false,
 }: {
+  demo?: boolean;
   w: Workspace;
   tasks: Task[];
   open: (id: string) => void;
@@ -19,6 +21,27 @@ export function TaskCalendar({
     { today } = useDates();
   const [mode, setMode] = useState<"day" | "week" | "month">("month"),
     [selected, setSelected] = useState(today());
+  const [milestones, setMilestones] = useState<
+    {
+      id: string;
+      projectId: string;
+      name: string;
+      dueDate: string;
+      archived: boolean;
+    }[]
+  >([]);
+  useEffect(() => {
+    if (demo) return;
+    const controller = new AbortController();
+    fetch(`/api/planning?workspaceId=${encodeURIComponent(w.id)}`, {
+      signal: controller.signal,
+    })
+      .then(async (r) => {
+        if (r.ok) setMilestones((await r.json()).milestones);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [demo, w.id]);
   const anchor = new Date(`${selected}T12:00:00Z`);
   let start = new Date(anchor),
     count = 1;
@@ -117,6 +140,13 @@ export function TaskCalendar({
                         {t.dueDate === key ? en.views.due : en.views.starts}
                       </small>{" "}
                       {t.title}
+                    </button>
+                  ))}
+                {milestones
+                  .filter((m) => !m.archived && m.dueDate === key)
+                  .map((m) => (
+                    <button key={m.id} onClick={() => openProject(m.projectId)}>
+                      <small>{en.planning.milestones}</small> {m.name}
                     </button>
                   ))}
                 {w.projects

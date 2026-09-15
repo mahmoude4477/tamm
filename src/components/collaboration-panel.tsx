@@ -366,6 +366,7 @@ export function Inbox({
   const [open, setOpen] = useState(false),
     [items, setItems] = useState<Notification[]>([]),
     [enabled, setEnabled] = useState<string[]>([...kinds]),
+    [emailEnabled, setEmailEnabled] = useState(false),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   const url = `/api/notifications?workspaceId=${encodeURIComponent(w.id)}`;
@@ -375,6 +376,7 @@ export function Inbox({
     const data = await r.json();
     setItems(data.items);
     setEnabled(data.enabledKinds);
+    setEmailEnabled(data.emailEnabled);
   }
   useEffect(() => {
     refresh().catch(() => setMessage(en.common.error));
@@ -446,9 +448,22 @@ export function Inbox({
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                send({ type: "preferences", enabledKinds: enabled });
+                send({
+                  type: "preferences",
+                  enabledKinds: enabled,
+                  emailEnabled,
+                });
               }}
             >
+              <label className="checklist-item">
+                <input
+                  type="checkbox"
+                  checked={emailEnabled}
+                  onChange={(e) => setEmailEnabled(e.target.checked)}
+                />
+                {en.planning.emailEnabled}
+              </label>
+              <p>{en.planning.emailHint}</p>
               {kinds.map((kind) => (
                 <label className="checklist-item" key={kind}>
                   <input

@@ -1828,7 +1828,7 @@ tr:last-child td {
 .advanced-filters {
   margin-block: 16px;
   padding: 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 8px;
 }
 .advanced-filters summary {
@@ -1877,7 +1877,7 @@ tr:last-child td {
 }
 [dir="rtl"] .sidebar {
   border-right: 0;
-  border-inline-end: 1px solid var(--border);
+  border-inline-end: 1px solid var(--line);
 }
 @media (max-width: 800px) {
   [dir="rtl"] .sidebar {
@@ -1901,4 +1901,175 @@ tr:last-child td {
 }
 .metrics {
   flex-wrap: wrap;
+}
+
+.planning-panel {
+  display: grid;
+  gap: 20px;
+}
+.planning-panel h1 {
+  margin-bottom: 8px;
+}
+.planning-panel h2 {
+  font-size: 20px;
+}
+.planning-panel p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+.planning-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.planning-card {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  margin-block: 12px;
+  min-width: 0;
+}
+.planning-card h3 {
+  margin: 0;
+}
+.planning-card progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--primary);
+}
+.planning-actions {
+  display: flex;
+  gap: 8px;
+}
+.planning-week,
+.analytics-filters label {
+  display: grid;
+  gap: 8px;
+}
+.analytics-filters {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.planning-panel input,
+.planning-panel select {
+  border: 1px solid var(--line);
+  background: white;
+  border-radius: 6px;
+  padding: 9px 12px;
+  font: inherit;
+  min-width: 0;
+}
+.capacity-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.capacity-form input {
+  width: 85px;
+}
+.health {
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.health-onTrack {
+  background: #e7f0e9;
+  color: #315643;
+}
+.health-atRisk {
+  background: #fff0cf;
+  color: #78571e;
+}
+.health-delayed {
+  background: #fbe8e2;
+  color: #9f4531;
+}
+.metric-bar {
+  display: grid;
+  grid-template-columns: 120px 1fr 40px;
+  align-items: center;
+  gap: 12px;
+  padding-block: 8px;
+}
+.metric-bar meter {
+  width: 100%;
+}
+@media (max-width: 800px) {
+  .planning-grid {
+    grid-template-columns: 1fr;
+  }
+  .analytics-filters {
+    align-items: stretch;
+  }
+  .planning-panel .table-scroll {
+    max-width: calc(100vw - 40px);
+    overflow: auto;
+  }
+}
+.working-days fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  margin-block: 12px;
+}
+.working-days label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.planning-panel,
+.planning-panel > section,
+.planning-grid > section {
+  min-width: 0;
+}
+.planning-panel .table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+}
+.planning-panel .view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-self: start;
+  padding: 4px;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.planning-panel .view-switch button {
+  padding: 8px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+.planning-panel .view-switch button.active {
+  background: white;
+  color: var(--primary);
+  box-shadow: 0 1px 3px #28362f15;
+}
+.planning-card progress {
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.planning-card progress::-webkit-progress-bar {
+  background: var(--line);
+}
+.planning-card progress::-webkit-progress-value {
+  background: var(--primary);
+}
+.planning-card progress::-moz-progress-bar {
+  background: var(--primary);
+}
+.planning-card select[multiple] option {
+  padding: 6px 8px;
 }

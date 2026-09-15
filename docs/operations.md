@@ -80,9 +80,35 @@ Both addresses must identify existing accounts. This command requires database o
 
 ## Behavior and capacity
 
-- The task table, audit log, and task search API use bounded server queries. The board, dashboard, dependency checks, and reports still use a workspace snapshot. Benchmark the largest expected workspace before rollout.
+- The task table, audit log, and task search API use bounded server queries. The incremental board and delivery analytics use bounded queries and database aggregates. The original overview, dependency checks, and monthly reports still use a workspace snapshot. Benchmark the largest expected workspace before rollout.
 - Workflow mutations serialize within one workspace to preserve dependency and approval rules. Independent workspaces have independent locks. Reads normally use a repeatable-read snapshot without a write lock.
-- Notifications are stored in PostgreSQL. Assignment and discussion events generate notifications during the write transaction. Due-soon and overdue reminders are generated idempotently when the inbox is loaded; they are not a scheduled email service.
+- Notifications are stored in PostgreSQL. Assignment and discussion events generate notifications during the write transaction. The scheduled worker generates due-soon and overdue reminders idempotently and sends opted-in email notifications.
 - Roles are workspace-wide. Department and team managers are recorded organizational assignments; they do not silently narrow a role's permissions. Custom roles control the application permission set. Better Auth invitation administration uses its owner/admin organization roles.
 - Templates are shared with the workspace. Only organization-visible projects can be used as template sources; private project content cannot be published as a workspace template.
 - Soft deletion preserves business records. Backup retention and eventual physical removal of deleted uploads are operator decisions.
+
+## V1.5 scheduled work
+
+Generate `JOBS_SECRET` with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. Use a separate value from the authentication secret. Set it on the application and worker, then run `npm run jobs` under your process supervisor. For cron or Windows Task Scheduler, run `npm run jobs -- --once` every minute. The HTTP worker endpoint is `/api/jobs`; it accepts POST with a bearer token and rejects browser sessions without that token. Restrict it to your internal network when possible. No Redis, RabbitMQ, Docker, or external scheduler service is required.
+
+The worker runs serially per installation using a PostgreSQL advisory lock. Each invocation handles up to 20 due recurring definitions, one occurrence per definition, and up to 20 pending emails. Missed dates catch up across later invocations. Keep clocks synchronized. Schedules use their saved timezone; changing the workspace timezone does not silently change an existing schedule.
+
+Recurring definitions capture a task and its subtasks, checklists, internal dependencies, estimates, and assignees. Each occurrence receives fresh IDs and starts in the first open status. Month-end dates clamp to the last day of shorter months without drifting from the original day. Generation and occurrence history commit atomically; the unique occurrence constraint prevents duplicate tasks after retries. Deleted/archived projects, inactive creators, revoked permissions, and invalid assignees pause generation with an error shown in Planning. Fix the cause before resuming. Changing the source task does not edit an existing schedule; pause it and create a new schedule when its template or cadence needs to change.
+
+Inbox reminders are deduplicated per task, due date, notification kind, and recipient. Email is off by default and follows each member's selected notification kinds and explicit email opt-in. The worker rechecks active membership, account suspension, and project visibility before selecting email recipients. Failed email attempts retry with exponential delays, up to five attempts. SMTP delivery is at least once: a process crash between sending and recording success can deliver the same email again. Do not use notifications as an exactly-once integration mechanism. Inspect `job_run`, `recurring_task.last_error`, and notification retry columns when troubleshooting. After correcting email transport, an operator can reset failed `email_attempts` and `email_retry_at` for selected records; never expose this operation to ordinary members.
+
+## Capacity and analytics
+
+Planning uses ISO weeks beginning Monday. The default calendar is Monday–Friday; project managers can configure working days, including Sunday–Thursday. Default capacity is 40 hours per person per week. Weekly overrides represent leave, part-time work, or other availability; zero means no capacity. Remaining effort (`max(estimate − actual, 0)`) is divided equally between assignees and the scheduled working days. Overdue effort is allocated to the current week. Tasks without due dates and tasks without estimates are displayed separately, so they do not disappear inside a misleading utilization percentage.
+
+Delivery analytics query PostgreSQL aggregates directly and honor project visibility and `report.view`. Cycle time is elapsed time from creation to completion. The median and 85th percentile describe the selected completed-task cohort; weekly throughput and on-time completion use workspace-local dates. Project health reflects overdue deadlines, incomplete overdue milestones, blocked dependencies, and progress relative to elapsed project time. Forecasts need at least three completions and extrapolate the selected period's completion rate; they are estimates, not commitments or employee scores.
+
+`/board` loads workspace metadata first and requests 25 tasks per status. Each column has its own load-more control. Opening detailed editing or another snapshot-based view may load the complete workspace for dependency validation and existing V1 features. The original overview/monthly reporting screens and planning configuration are not fully incremental. Profile those views before operating exceptionally large workspaces.
+
+## Optional upload scanning
+
+Set `CLAMAV_HOST` to a trusted internal ClamAV daemon and `CLAMAV_PORT` (default 3310). Enable its INSTREAM protocol and configure `StreamMaxLength` to at least 10 MiB. Uploaded bytes are scanned in memory before writing a file or metadata. A malicious response, scanner error, timeout, or broken connection rejects the upload; the application never executes a scanner command with a user-supplied filename. The scanner's TCP protocol is not encrypted, so use a trusted local network or protected tunnel. If scanning is not configured, the V1 file type/signature/size validation still applies. Scanning reduces risk but does not guarantee a file is safe.
+
+## UI primitives
+
+The owned components in `src/components/ui` use `@base-ui/react` with shadcn component conventions. `components.json` selects the Base UI style, and the locale provider supplies Base UI's direction context. Button and dialog changes preserve the app's visual tokens, form submission, focus management, Escape behavior, and RTL layout. Native selects and inputs remain native controls.

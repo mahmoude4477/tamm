@@ -1,3 +1,4 @@
+import { scanUpload } from "@/lib/scan-upload";
 import { and, eq, isNull } from "drizzle-orm";
 import { mkdir, writeFile, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -150,6 +151,13 @@ export async function POST(request: Request) {
     scope(w, taskId, projectId);
     const data = Buffer.from(await file.arrayBuffer());
     const mime = mimeFor(data, file.name);
+    try {
+      await scanUpload(data);
+    } catch (error) {
+      if (error instanceof Error && error.message === "file")
+        throw new DomainError("file");
+      throw error;
+    }
     const name = path
       .basename(file.name)
       .replace(/[\x00-\x1f\x7f]/g, "")
