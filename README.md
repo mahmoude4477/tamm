@@ -115,7 +115,7 @@ A checked item means implemented and covered by the release validation. Unchecke
 - [x] Scheduled notification delivery and optional upload scanning integration.
 
 - [x] Base UI button/dialog primitives and RTL direction provider, with shadcn configuration.
-- [ ] Final V1.5 PostgreSQL and browser validation.
+- [x] Final V1.5 PostgreSQL and browser validation.
 
 ## Remaining work — V2
 
@@ -166,7 +166,7 @@ npx playwright install chromium
 RUN_AUTH_E2E=true npm run test:e2e
 ```
 
-V1 validation passed type checking, 21 domain/localization tests, PostgreSQL migrations and integration flows, the production build, and 4 browser checks covering work management, Arabic/mobile navigation, account/passkey setup, and overview accessibility. CI runs these checks for changes. Integration fixtures use `example.com` accounts and local file email delivery.
+V1.5 validation passed type checking, 30 domain/localization/upload-scanning tests, PostgreSQL migrations and integration flows, the production build, and 5 browser checks covering work management, Arabic/mobile navigation, account/passkey setup, overview accessibility, and the complete planning-to-board workflow. CI runs these checks for changes. Integration fixtures use `example.com` accounts and local file email delivery.
 
 The interface follows the principles in [Better UI](https://skills.sh/jakubkrehel/skills/better-ui) and [Emil Design Engineering](https://skills.sh/emilkowalski/skills/emil-design-eng): clear hierarchy, keyboard access, restrained motion, and useful states.
 
