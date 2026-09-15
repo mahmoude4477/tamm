@@ -119,25 +119,21 @@ export async function generateOccurrence(id: string) {
       }
       await saveWorkspace(tx, next, before);
       await notifyChanges(tx, before, next);
-      await tx
-        .insert(s.recurringRuns)
-        .values({
-          id: crypto.randomUUID(),
-          workspaceId: rule.workspaceId,
-          recurringId: id,
-          scheduledFor: rule.nextDate,
-          taskIds: [...ids.values()],
-        });
-      await tx
-        .insert(s.auditLogs)
-        .values({
-          id: crypto.randomUUID(),
-          workspaceId: rule.workspaceId,
-          actorId: rule.createdBy,
-          action: "recurrence.generated",
-          entityId: id,
-          detail: { scheduledFor: rule.nextDate, taskIds: [...ids.values()] },
-        });
+      await tx.insert(s.recurringRuns).values({
+        id: crypto.randomUUID(),
+        workspaceId: rule.workspaceId,
+        recurringId: id,
+        scheduledFor: rule.nextDate,
+        taskIds: [...ids.values()],
+      });
+      await tx.insert(s.auditLogs).values({
+        id: crypto.randomUUID(),
+        workspaceId: rule.workspaceId,
+        actorId: rule.createdBy,
+        action: "recurrence.generated",
+        entityId: id,
+        detail: { scheduledFor: rule.nextDate, taskIds: [...ids.values()] },
+      });
       await tx
         .update(s.workspaces)
         .set({ version: sql`${s.workspaces.version}+1` })

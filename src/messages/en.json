@@ -653,7 +653,7 @@
     "emailHint": "Email delivery requires the scheduled worker and configured email transport.",
     "notificationSubject": "Tamm workspace notification",
     "loadMore": "Load more",
-    "boardLink": "Open incremental board",
+    "boardLink": "Open board",
     "demoHint": "Planning changes require a persistent workspace.",
     "saved": "Saved",
     "archived": "Archived",

@@ -80,9 +80,9 @@ Both addresses must identify existing accounts. This command requires database o
 
 ## Behavior and capacity
 
-- The task table, audit log, and task search API use bounded server queries. The board, dashboard, dependency checks, and reports still use a workspace snapshot. Benchmark the largest expected workspace before rollout.
+- The task table, audit log, and task search API use bounded server queries. The incremental board and delivery analytics use bounded queries and database aggregates. The original overview, dependency checks, and monthly reports still use a workspace snapshot. Benchmark the largest expected workspace before rollout.
 - Workflow mutations serialize within one workspace to preserve dependency and approval rules. Independent workspaces have independent locks. Reads normally use a repeatable-read snapshot without a write lock.
-- Notifications are stored in PostgreSQL. Assignment and discussion events generate notifications during the write transaction. Due-soon and overdue reminders are generated idempotently when the inbox is loaded; they are not a scheduled email service.
+- Notifications are stored in PostgreSQL. Assignment and discussion events generate notifications during the write transaction. The scheduled worker generates due-soon and overdue reminders idempotently and sends opted-in email notifications.
 - Roles are workspace-wide. Department and team managers are recorded organizational assignments; they do not silently narrow a role's permissions. Custom roles control the application permission set. Better Auth invitation administration uses its owner/admin organization roles.
 - Templates are shared with the workspace. Only organization-visible projects can be used as template sources; private project content cannot be published as a workspace template.
 - Soft deletion preserves business records. Backup retention and eventual physical removal of deleted uploads are operator decisions.

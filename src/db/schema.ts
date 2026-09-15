@@ -289,6 +289,9 @@ export const tasks = pgTable(
     }),
     index("task_assignee").on(t.workspaceId, t.assigneeId),
     index("task_project").on(t.workspaceId, t.projectId),
+    index("task_board_page")
+      .on(t.workspaceId, t.statusId, t.dueDate, t.id)
+      .where(sql`${t.deletedAt} is null and not ${t.archived}`),
   ],
 );
 export const taskDependencies = pgTable(
@@ -468,7 +471,12 @@ export const notifications = pgTable(
     emailAttempts: integer("email_attempts").notNull().default(0),
     emailRetryAt: timestamp("email_retry_at"),
   },
-  (t) => [index("notification_inbox").on(t.workspaceId, t.userId, t.createdAt)],
+  (t) => [
+    index("notification_inbox").on(t.workspaceId, t.userId, t.createdAt),
+    index("notification_email_pending")
+      .on(t.createdAt, t.id)
+      .where(sql`${t.emailedAt} is null and ${t.emailAttempts}<5`),
+  ],
 );
 export const notificationPreferences = pgTable(
   "notification_preferences",
@@ -552,6 +560,7 @@ export const milestones = pgTable(
   },
   (t) => [
     unique("milestone_scope").on(t.workspaceId, t.id),
+    index("milestone_project_due").on(t.projectId, t.dueDate),
     foreignKey({
       columns: [t.workspaceId, t.projectId],
       foreignColumns: [projects.workspaceId, projects.id],
@@ -567,6 +576,7 @@ export const milestoneTasks = pgTable(
   },
   (t) => [
     unique("milestone_task_unique").on(t.workspaceId, t.taskId),
+    index("milestone_task_milestone").on(t.milestoneId),
     foreignKey({
       columns: [t.workspaceId, t.milestoneId],
       foreignColumns: [milestones.workspaceId, milestones.id],

@@ -278,17 +278,15 @@ export async function POST(request: Request) {
         }
         project(tasks[0].projectId);
         entityId = crypto.randomUUID();
-        await tx
-          .insert(s.recurringTasks)
-          .values({
-            id: entityId,
-            workspaceId: w.id,
-            projectId: tasks[0].projectId,
-            name: c.name,
-            createdBy: actor.id,
-            definition: { ...c.schedule, tasks },
-            nextDate: c.schedule.anchorDate,
-          });
+        await tx.insert(s.recurringTasks).values({
+          id: entityId,
+          workspaceId: w.id,
+          projectId: tasks[0].projectId,
+          name: c.name,
+          createdBy: actor.id,
+          definition: { ...c.schedule, tasks },
+          nextDate: c.schedule.anchorDate,
+        });
       } else {
         const [old] = await tx
           .select()
@@ -313,16 +311,14 @@ export async function POST(request: Request) {
           .set({ enabled: c.enabled, lastError: null })
           .where(eq(s.recurringTasks.id, old.id));
       }
-      await tx
-        .insert(s.auditLogs)
-        .values({
-          id: crypto.randomUUID(),
-          workspaceId: w.id,
-          actorId: actor.id,
-          action: c.type,
-          entityId,
-          detail: { before, after: c },
-        });
+      await tx.insert(s.auditLogs).values({
+        id: crypto.randomUUID(),
+        workspaceId: w.id,
+        actorId: actor.id,
+        action: c.type,
+        entityId,
+        detail: { before, after: c },
+      });
     });
     return Response.json({ ok: true });
   } catch (e) {

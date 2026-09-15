@@ -62,12 +62,12 @@ export async function GET(request: Request) {
  percentile_cont(0.5) within group(order by extract(epoch from(t.completed_at::timestamptz-t.created_at::timestamptz))/86400) filter(where ${donePeriod}) as median_days,
  percentile_cont(0.85) within group(order by extract(epoch from(t.completed_at::timestamptz-t.created_at::timestamptz))/86400) filter(where ${donePeriod}) as p85_days,
  (select count(*) from milestone ms where ms.project_id=p.id and not ms.archived and ms.due_date<${date} and (not exists(select 1 from milestone_task mt where mt.milestone_id=ms.id) or exists(select 1 from milestone_task mt join task tt on tt.id=mt.task_id join task_status ts on ts.id=tt.status_id where mt.milestone_id=ms.id and tt.deleted_at is null and ts.category<>'done'))) as late_milestones
- from project p left join task t on t.project_id=p.id and t.deleted_at is null and not t.archived left join task_status st on st.id=t.status_id where ${visible} group by p.id order by p.name`);
+ from project p left join task t on t.project_id=p.id and t.workspace_id=p.workspace_id and t.deleted_at is null and not t.archived left join task_status st on st.id=t.status_id where ${visible} group by p.id order by p.name`);
     const weekly = await db.execute<{ week: string; completed: string }>(
-      sql`select to_char(date_trunc('week',t.completed_at::timestamptz at time zone ${timezone}),'YYYY-MM-DD') as week,count(*) as completed from task t join project p on p.id=t.project_id join task_status st on st.id=t.status_id where ${visible} and t.deleted_at is null and not t.archived and ${donePeriod} group by 1 order by 1`,
+      sql`select to_char(date_trunc('week',t.completed_at::timestamptz at time zone ${timezone}),'YYYY-MM-DD') as week,count(*) as completed from task t join project p on p.id=t.project_id and p.workspace_id=t.workspace_id join task_status st on st.id=t.status_id where ${visible} and t.deleted_at is null and not t.archived and ${donePeriod} group by 1 order by 1`,
     );
     const aging = await db.execute<{ bucket: string; count: string }>(
-      sql`select case when ${date}::date-(t.created_at::timestamptz at time zone ${timezone})::date<7 then 'under7' when ${date}::date-(t.created_at::timestamptz at time zone ${timezone})::date<30 then 'under30' else 'over30' end as bucket,count(*) as count from task t join project p on p.id=t.project_id join task_status st on st.id=t.status_id where ${visible} and t.deleted_at is null and not t.archived and st.category not in ('done','cancelled') group by 1`,
+      sql`select case when ${date}::date-(t.created_at::timestamptz at time zone ${timezone})::date<7 then 'under7' when ${date}::date-(t.created_at::timestamptz at time zone ${timezone})::date<30 then 'under30' else 'over30' end as bucket,count(*) as count from task t join project p on p.id=t.project_id and p.workspace_id=t.workspace_id join task_status st on st.id=t.status_id where ${visible} and t.deleted_at is null and not t.archived and st.category not in ('done','cancelled') group by 1`,
     );
     const projects = rows.rows.map((r) => {
       const p = {

@@ -200,12 +200,11 @@ test("V1.5 planning, capacity, analytics and incremental board", async ({
   await page
     .getByRole("button", { name: en.nav.planning, exact: true })
     .click();
+  const milestoneName = `Browser milestone ${Date.now()}`;
   const form = page
-    .locator("form")
+    .locator(".planning-panel form")
     .filter({ has: page.getByLabel(en.planning.name, { exact: true }) });
-  await form
-    .getByLabel(en.planning.name, { exact: true })
-    .fill("Browser milestone");
+  await form.getByLabel(en.planning.name, { exact: true }).fill(milestoneName);
   await form
     .getByLabel(en.planning.project, { exact: true })
     .selectOption({ label: "Shared project" });
@@ -218,19 +217,17 @@ test("V1.5 planning, capacity, analytics and incremental board", async ({
     .getByRole("button", { name: en.planning.save, exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Browser milestone" }),
+    page.getByRole("heading", { name: milestoneName }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: en.planning.recurring, exact: true })
     .click();
-  const rule = page
-    .locator("article")
-    .filter({
-      has: page.getByRole("heading", {
-        name: "Weekly operations",
-        exact: true,
-      }),
-    });
+  const rule = page.locator("article").filter({
+    has: page.getByRole("heading", {
+      name: "Weekly operations",
+      exact: true,
+    }),
+  });
   await rule
     .getByRole("button", { name: en.planning.pause, exact: true })
     .click();
