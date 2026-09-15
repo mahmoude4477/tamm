@@ -268,6 +268,18 @@ test("V1.5 planning, capacity, analytics and incremental board", async ({
   await page.goto("/board");
   expect((await (await metadata).json()).workspace.tasks).toEqual([]);
   await expect(page.locator(".task-card").first()).toBeVisible();
+  await page.keyboard.press("Control+k");
+  await page
+    .getByRole("dialog")
+    .getByLabel(en.common.search, { exact: true })
+    .fill("Review delivery");
+  await expect(
+    page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Review delivery", exact: true })
+      .first(),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
   await page.locator(".task-card").first().click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");

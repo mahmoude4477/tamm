@@ -218,7 +218,10 @@ export function TammApp({
       if (current)
         fetch(`/api/workspace?workspaceId=${encodeURIComponent(current.id)}`)
           .then((r) => (r.ok ? r.json() : Promise.reject()))
-          .then((data) => setW(data.workspace))
+          .then((data) => {
+            setW(data.workspace);
+            setFullLoaded(true);
+          })
           .catch(() => setError(en.common.error));
     };
     window.addEventListener("tamm:refresh", reload);
@@ -229,7 +232,11 @@ export function TammApp({
       demo ||
       fullLoaded ||
       !w ||
-      (page === "tasks" && view !== "calendar" && !taskId && !createTask)
+      (page === "tasks" &&
+        view !== "calendar" &&
+        !taskId &&
+        !createTask &&
+        !commandOpen)
     )
       return;
     const controller = new AbortController();
@@ -246,7 +253,7 @@ export function TammApp({
         if (e.name !== "AbortError") setError(en.common.error);
       });
     return () => controller.abort();
-  }, [demo, fullLoaded, w?.id, page, view, taskId, createTask]);
+  }, [demo, fullLoaded, w?.id, page, view, taskId, createTask, commandOpen]);
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -287,6 +294,7 @@ export function TammApp({
         const data = await r.json();
         if (!r.ok) throw new DomainError(data.error);
         setW(data.workspace);
+        setFullLoaded(true);
       }
       return true;
     } catch (e) {

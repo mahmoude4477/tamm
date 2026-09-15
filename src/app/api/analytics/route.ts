@@ -5,7 +5,7 @@ import { getIdentity, resolveMembership, apiError } from "@/lib/server-context";
 import { can } from "@/lib/permissions";
 import { DomainError } from "@/lib/commands";
 import { today } from "@/lib/dates";
-import { addDays, day, daysBetween } from "@/lib/planning/model";
+import { addDays, day, daysBetween, weekStart } from "@/lib/planning/model";
 import { projectHealth, type ProjectAnalytics } from "@/lib/planning/analytics";
 export async function GET(request: Request) {
   try {
@@ -105,10 +105,18 @@ export async function GET(request: Request) {
         from,
         to,
         projects,
-        weekly: weekly.rows.map((r) => ({
-          ...r,
-          completed: Number(r.completed),
-        })),
+        weekly: Array.from(
+          { length: Math.floor(daysBetween(weekStart(from), to) / 7) + 1 },
+          (_, i) => {
+            const week = addDays(weekStart(from), i * 7);
+            return {
+              week,
+              completed: Number(
+                weekly.rows.find((r) => r.week === week)?.completed ?? 0,
+              ),
+            };
+          },
+        ),
         aging: aging.rows.map((r) => ({ ...r, count: Number(r.count) })),
       },
       { headers: { "Cache-Control": "no-store" } },
