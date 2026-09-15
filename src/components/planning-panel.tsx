@@ -213,6 +213,7 @@ export function PlanningPanel({
                   <label>
                     {p.project}
                     <select
+                      aria-label={p.project}
                       value={project}
                       disabled={!!editing}
                       onChange={(e) => setProject(e.target.value)}
@@ -238,6 +239,7 @@ export function PlanningPanel({
                   <label>
                     {p.tasks}
                     <select
+                      aria-label={p.tasks}
                       multiple
                       name="tasks"
                       size={8}
