@@ -1,6 +1,7 @@
 "use client";
 import { LocalePicker, useLocale } from "./locale-provider";
 import { ServerBoard } from "./server-board";
+import { ExtensionPanel } from "./extension-panel";
 import { PlanningPanel } from "./planning-panel";
 import { AnalyticsPanel } from "./analytics-panel";
 import { ManagerPanel } from "./manager-panel";
@@ -73,6 +74,7 @@ import {
   StatusDot,
 } from "./workspace-shared";
 type Page =
+  | "extensions"
   | "planning"
   | "analytics"
   | "tasks"
@@ -93,6 +95,7 @@ const nav = [
   ["manager", Users],
   ["reports", ChartNoAxesCombined],
   ["planning", CalendarDays],
+  ["extensions", Layers],
   ["analytics", ChartNoAxesCombined],
   ["activity", Activity],
 ] as const;
@@ -1191,6 +1194,7 @@ export function TammApp({
                 )}
             </>
           )}
+          {page === "extensions" && <ExtensionPanel w={w} demo={demo} />}
           {page === "planning" && (
             <PlanningPanel w={w} demo={demo} onTask={setTaskId} />
           )}
@@ -1293,6 +1297,9 @@ export function TammApp({
             />
           )}
           <ErrorNotice error={error} />
+          {task && !demo && (
+            <ExtensionPanel key={task.id} w={w} demo={false} taskId={task.id} />
+          )}
         </DialogContent>
       </Dialog>
       <Dialog open={commandOpen} onOpenChange={setCommandOpen}>

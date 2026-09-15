@@ -2073,3 +2073,58 @@ tr:last-child td {
 .planning-card select[multiple] option {
   padding: 6px 8px;
 }
+
+.extension-panel {
+  min-width: 0;
+}
+.extension-panel > label,
+.extension-panel .planning-card > label {
+  display: grid;
+  gap: 0.4rem;
+  margin-block: 0.7rem;
+}
+.extension-panel input:not([type="checkbox"]),
+.extension-panel select,
+.extension-panel textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface, white);
+  color: inherit;
+  font: inherit;
+}
+.extension-panel .planning-card {
+  overflow-wrap: anywhere;
+}
+.extension-panel .planning-card > button {
+  margin-inline-end: 0.5rem;
+  margin-block-start: 0.5rem;
+}
+.extension-checkbox {
+  display: flex !important;
+  align-items: start;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  margin-block: 0.6rem;
+}
+.extension-checkbox input {
+  width: auto;
+  margin-top: 0.2rem;
+}
+.extension-field {
+  display: flex;
+  gap: 0.5rem;
+  align-items: end;
+  margin-block: 1rem;
+  flex-wrap: wrap;
+}
+.extension-field label {
+  flex: 1 1 12rem;
+  display: grid;
+  gap: 0.4rem;
+}
+.extension-panel textarea {
+  resize: vertical;
+}

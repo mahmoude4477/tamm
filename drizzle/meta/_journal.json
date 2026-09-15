@@ -43,6 +43,13 @@
       "when": 1789449684303,
       "tag": "0005_good_martin_li",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789452635268,
+      "tag": "0006_futuristic_shocker",
+      "breakpoints": true
     }
   ]
 }

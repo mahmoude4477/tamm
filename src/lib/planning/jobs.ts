@@ -4,6 +4,7 @@ import { db } from "@/db";
 import * as s from "@/db/schema";
 import { generateOccurrence } from "./recurrence";
 import { sendMail, mailConfigured } from "../email";
+import { deliverWebhooks } from "../v2/integrations";
 import en from "@/messages/en.json";
 export async function runJobs() {
   return db.transaction(async (guard) => {
@@ -17,6 +18,7 @@ export async function runJobs() {
       notified: 0,
       emailed: 0,
       retried: 0,
+      webhooks: 0,
     };
     const id = crypto.randomUUID();
     await guard.insert(s.jobRuns).values({ id });
@@ -116,6 +118,7 @@ export async function runJobs() {
         }
       }
     }
+    result.webhooks = await deliverWebhooks();
     await guard
       .update(s.jobRuns)
       .set({ finishedAt: new Date(), result })

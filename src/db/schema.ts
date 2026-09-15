@@ -656,3 +656,181 @@ export const jobRuns = pgTable("job_run", {
   finishedAt: timestamp("finished_at"),
   result: jsonb("result").$type<Record<string, number>>().notNull().default({}),
 });
+
+export const customFields = pgTable(
+  "custom_field",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    projectId: text("project_id"),
+    name: text("name").notNull(),
+    kind: text("kind").notNull(),
+    options: jsonb("options").$type<string[]>().notNull().default([]),
+    archived: boolean("archived").notNull().default(false),
+  },
+  (t) => [
+    unique("custom_field_scope").on(t.workspaceId, t.id),
+    foreignKey({
+      columns: [t.workspaceId, t.projectId],
+      foreignColumns: [projects.workspaceId, projects.id],
+    }),
+    index("custom_field_workspace").on(t.workspaceId),
+  ],
+);
+export const customValues = pgTable(
+  "custom_value",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    taskId: text("task_id").notNull(),
+    fieldId: text("field_id").notNull(),
+    value: jsonb("value").$type<string | number | boolean | null>(),
+  },
+  (t) => [
+    unique("custom_value_task_field").on(t.taskId, t.fieldId),
+    foreignKey({
+      columns: [t.workspaceId, t.taskId],
+      foreignColumns: [tasks.workspaceId, tasks.id],
+    }),
+    foreignKey({
+      columns: [t.workspaceId, t.fieldId],
+      foreignColumns: [customFields.workspaceId, customFields.id],
+    }),
+    index("custom_value_workspace").on(t.workspaceId),
+  ],
+);
+export const timeEntries = pgTable(
+  "time_entry",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    taskId: text("task_id").notNull(),
+    userId: text("user_id").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    minutes: doublePrecision("minutes"),
+    note: text("note").notNull().default(""),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.workspaceId, t.taskId],
+      foreignColumns: [tasks.workspaceId, tasks.id],
+    }),
+    foreignKey({
+      columns: [t.workspaceId, t.userId],
+      foreignColumns: [memberships.workspaceId, memberships.userId],
+    }),
+    uniqueIndex("one_running_timer")
+      .on(t.workspaceId, t.userId)
+      .where(sql`${t.endedAt} is null and ${t.deletedAt} is null`),
+    check(
+      "time_valid",
+      sql`(${t.endedAt} is null and ${t.minutes} is null) or (${t.endedAt} >= ${t.startedAt} and ${t.minutes} >= 0 and ${t.minutes} <= 1440)`,
+    ),
+    index("time_report").on(t.workspaceId, t.startedAt),
+  ],
+);
+export const integrationKeys = pgTable(
+  "integration_key",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    hash: text("hash").notNull().unique(),
+    scopes: jsonb("scopes").$type<string[]>().notNull(),
+    projectId: text("project_id"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    windowAt: timestamp("window_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    requests: integer("requests").notNull().default(0),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.workspaceId, t.userId],
+      foreignColumns: [memberships.workspaceId, memberships.userId],
+    }),
+    foreignKey({
+      columns: [t.workspaceId, t.projectId],
+      foreignColumns: [projects.workspaceId, projects.id],
+    }),
+    index("integration_key_workspace").on(t.workspaceId),
+  ],
+);
+export const webhookEndpoints = pgTable(
+  "webhook_endpoint",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    url: text("url").notNull(),
+    projectId: text("project_id").notNull(),
+    encryptedSecret: text("encrypted_secret").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.workspaceId, t.userId],
+      foreignColumns: [memberships.workspaceId, memberships.userId],
+    }),
+    foreignKey({
+      columns: [t.workspaceId, t.projectId],
+      foreignColumns: [projects.workspaceId, projects.id],
+    }),
+    unique("webhook_scope").on(t.workspaceId, t.id),
+    index("webhook_workspace").on(t.workspaceId),
+  ],
+);
+export const webhookDeliveries = pgTable(
+  "webhook_delivery",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    endpointId: text("endpoint_id").notNull(),
+    eventId: text("event_id").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    nextAt: timestamp("next_at", { withTimezone: true }).notNull().defaultNow(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    lastStatus: integer("last_status"),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.workspaceId, t.endpointId],
+      foreignColumns: [webhookEndpoints.workspaceId, webhookEndpoints.id],
+    }),
+    unique("webhook_event").on(t.endpointId, t.eventId),
+    index("webhook_pending")
+      .on(t.nextAt)
+      .where(sql`${t.deliveredAt} is null and ${t.attempts}<5`),
+  ],
+);
+export const assistantUsage = pgTable(
+  "assistant_usage",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    userId: text("user_id").notNull(),
+    day: text("day").notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.workspaceId, t.userId],
+      foreignColumns: [memberships.workspaceId, memberships.userId],
+    }),
+    unique("assistant_daily").on(t.workspaceId, t.userId, t.day),
+  ],
+);
