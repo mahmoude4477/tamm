@@ -3,6 +3,9 @@
   <h1>Tamm · تم</h1>
   <p>Projects, people, and the next step — together.</p>
   <p>
+    <a href="README.ar.md"><img src="https://img.shields.io/badge/اقرأ_بالعربية-315643?style=for-the-badge" alt="اقرأ الملف التعريفي بالعربية" /></a>
+  </p>
+  <p>
     <a href="https://github.com/mahmoude4477/tamm/actions/workflows/ci.yml"><img src="https://github.com/mahmoude4477/tamm/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-315643" alt="MIT license" /></a>
     <img src="https://img.shields.io/badge/English_%2B_Arabic-RTL_ready-315643" alt="English and Arabic" />
@@ -37,8 +40,6 @@ Requirements: **Node.js 22+**, **PostgreSQL 16+**, and npm.
 ```bash
 git clone https://github.com/mahmoude4477/tamm.git
 cd tamm
-# Until the V1.5 pull request is merged:
-git switch feat/v1-5-base-ui
 npm ci
 cp .env.example .env.local
 ```
