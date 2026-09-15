@@ -1,4 +1,5 @@
 "use client";
+import { taskLabel } from "@/lib/task-label";
 import { readRequest } from "@/lib/read-request";
 import { Input } from "@/components/ui/input";
 import { FormSelect, SelectOption } from "@/components/ui/form-select";
@@ -205,7 +206,7 @@ export function TemplatePanel({ w }: { w: Workspace }) {
                 )
                 .map((t) => (
                   <SelectOption key={t.id} value={`task:${t.id}`}>
-                    {t.title}
+                    {taskLabel(w, t)}
                   </SelectOption>
                 ))}
             </FormSelect>

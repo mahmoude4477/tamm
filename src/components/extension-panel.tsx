@@ -1,4 +1,5 @@
 "use client";
+import { taskLabel } from "@/lib/task-label";
 import { readRequest } from "@/lib/read-request";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -222,7 +223,7 @@ export function ExtensionPanel({
                 <SelectOption value="">{p.selectTask}</SelectOption>
                 {tasks.map((t) => (
                   <SelectOption key={t.id} value={t.id}>
-                    {t.title}
+                    {taskLabel(w, t)}
                   </SelectOption>
                 ))}
               </FormSelect>

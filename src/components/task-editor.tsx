@@ -1,4 +1,5 @@
 "use client";
+import { taskLabel } from "@/lib/task-label";
 import { statusLabel } from "@/lib/status-label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -187,7 +188,7 @@ export function TaskForm({
               .filter((t) => t.id !== task?.id && !t.deletedAt)
               .map((t) => (
                 <SelectOption key={t.id} value={t.id}>
-                  {t.title}
+                  {taskLabel(w, t)}
                 </SelectOption>
               ))}
           </FormSelect>
@@ -212,7 +213,7 @@ export function TaskForm({
             .filter((t) => t.id !== task?.id && !t.deletedAt)
             .map((t) => (
               <SelectOption key={t.id} value={t.id}>
-                {t.title}
+                {taskLabel(w, t)}
               </SelectOption>
             ))}
         </FormSelect>
@@ -277,7 +278,7 @@ export function TaskForm({
             .filter((t) => t.id !== task?.id && !t.deletedAt)
             .map((t) => (
               <SelectOption key={t.id} value={t.id}>
-                {t.title}
+                {taskLabel(w, t)}
               </SelectOption>
             ))}
         </FormSelect>
@@ -293,7 +294,7 @@ export function TaskForm({
             .filter((t) => t.id !== task?.id && !t.deletedAt)
             .map((t) => (
               <SelectOption key={t.id} value={t.id}>
-                {t.title}
+                {taskLabel(w, t)}
               </SelectOption>
             ))}
         </FormSelect>

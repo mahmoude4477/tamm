@@ -343,7 +343,7 @@ test("V2 custom values, time entries, calendar keys and Hijri preference", async
   await expect(panel.getByRole("heading", { name: fieldName })).toBeVisible();
   await panel.getByRole("combobox", { name: en.v2.task, exact: true }).click();
   await page
-    .getByRole("option", { name: "Review delivery", exact: true })
+    .getByRole("option", { name: "SHR-1 · Review delivery", exact: true })
     .click();
   const value = panel
     .locator(".extension-field")
