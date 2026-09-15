@@ -1,6 +1,6 @@
 {
   "name": "tamm",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -14,7 +14,8 @@
     "format": "prettier --write src tests scripts e2e playwright.config.ts",
     "format:check": "prettier --check src tests scripts e2e playwright.config.ts",
     "test:e2e": "playwright test",
-    "jobs": "node --env-file-if-exists=.env.local scripts/jobs.mjs"
+    "jobs": "node --env-file-if-exists=.env.local scripts/jobs.mjs",
+    "mail:check": "node --env-file-if-exists=.env.local --import tsx scripts/check-smtp.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -45,7 +46,6 @@
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.0.0",
-    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.15.5",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.0",

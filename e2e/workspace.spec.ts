@@ -292,3 +292,101 @@ test("V1.5 planning, capacity, analytics and incremental board", async ({
   await expect(page.getByRole("dialog")).toBeHidden();
   expect(errors).toEqual([]);
 });
+
+test("V2 custom values, time entries, calendar keys and Hijri preference", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.RUN_AUTH_E2E !== "true",
+    "Requires PostgreSQL fixtures.",
+  );
+  await page.goto("/login");
+  await page
+    .getByLabel(en.auth.email, { exact: true })
+    .fill("owner@example.com");
+  await page
+    .getByLabel(en.auth.password, { exact: true })
+    .fill("test-only-password-49Qv!");
+  await page.getByRole("button", { name: en.auth.signIn, exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: en.overview.title }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: en.nav.extensions, exact: true })
+    .click();
+  const panel = page.locator(".extension-panel");
+  await expect(panel.getByRole("heading", { name: en.v2.title })).toBeVisible();
+  const fieldName = `Browser field ${Date.now()}`;
+  const form = panel.locator("form").filter({
+    has: page.getByRole("heading", { name: en.v2.create, exact: true }),
+  });
+  await form.getByLabel(en.v2.name, { exact: true }).fill(fieldName);
+  await form.getByRole("button", { name: en.v2.save, exact: true }).click();
+  await expect(panel.getByRole("heading", { name: fieldName })).toBeVisible();
+  await panel
+    .getByLabel(en.v2.task, { exact: true })
+    .selectOption({ label: "Review delivery" });
+  const value = panel
+    .locator(".extension-field")
+    .filter({ has: page.getByLabel(fieldName, { exact: true }) });
+  await value.getByLabel(fieldName, { exact: true }).fill("Browser value");
+  await value.getByRole("button", { name: en.v2.save, exact: true }).click();
+  await expect(value.getByLabel(fieldName, { exact: true })).toHaveValue(
+    "Browser value",
+  );
+  await panel.getByRole("button", { name: en.v2.time, exact: true }).click();
+  await panel.getByRole("button", { name: en.v2.start, exact: true }).click();
+  await expect(
+    panel.getByRole("button", { name: en.v2.stop, exact: true }),
+  ).toBeVisible();
+  await panel.getByRole("button", { name: en.v2.stop, exact: true }).click();
+  await expect(
+    panel.getByRole("button", { name: en.v2.stop, exact: true }),
+  ).toBeHidden();
+  const manual = panel.locator("form").filter({
+    has: page.getByRole("heading", { name: en.v2.manual, exact: true }),
+  });
+  await manual.getByLabel(en.v2.minutes, { exact: true }).fill("25");
+  await manual
+    .getByLabel(en.v2.note, { exact: true })
+    .fill("Browser time entry");
+  await manual.getByRole("button", { name: en.v2.save, exact: true }).click();
+  await expect(
+    panel
+      .getByRole("cell", { name: "Browser time entry", exact: true })
+      .first(),
+  ).toBeVisible();
+  const download = page.waitForEvent("download");
+  await panel.getByRole("button", { name: en.v2.export, exact: true }).click();
+  expect((await download).suggestedFilename()).toBe("tamm-time.csv");
+  await panel
+    .getByRole("button", { name: en.v2.integrations, exact: true })
+    .click();
+  const keyName = `Browser calendar ${Date.now()}`,
+    keyForm = panel
+      .locator("form")
+      .filter({ has: page.getByLabel(en.v2.days, { exact: true }) });
+  await keyForm.getByLabel(en.v2.name, { exact: true }).fill(keyName);
+  await keyForm
+    .getByRole("button", { name: en.v2.create, exact: true })
+    .click();
+  await expect(
+    panel.getByLabel(en.v2.calendarUrl, { exact: true }),
+  ).toHaveValue(/\/api\/calendar\?token=tamm_/);
+  const keyCard = panel
+    .locator("article")
+    .filter({ has: page.getByRole("heading", { name: keyName, exact: true }) });
+  await keyCard
+    .getByRole("button", { name: en.v2.revoke, exact: true })
+    .click();
+  await expect(keyCard.getByText(en.v2.revoked, { exact: true })).toBeVisible();
+  const hijri = page.getByRole("checkbox", { name: en.v2.hijri, exact: true });
+  await hijri.check();
+  await page.reload();
+  await expect(
+    page.getByRole("checkbox", { name: en.v2.hijri, exact: true }),
+  ).toBeChecked();
+  await page
+    .getByRole("checkbox", { name: en.v2.hijri, exact: true })
+    .uncheck();
+});

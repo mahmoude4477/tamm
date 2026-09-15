@@ -28,6 +28,8 @@ Run it on your own infrastructure with Node.js and PostgreSQL. Docker is optiona
 - **Collaboration** — Discuss work with comments, mentions, attachments, followers, and notifications.
 - **Reporting** — Explore project health, workload, and monthly delivery trends. Export reports to CSV, Excel, or PDF.
 - **Workspace administration** — Manage invitations, roles, permissions, activity history, and archived records across multiple workspaces.
+- **Custom fields and time** — Add project-specific fields, run timers, record manual entries, and export time reports.
+- **Integrations** — Connect internal systems with scoped API keys, signed webhooks, and calendar subscriptions. Enable an optional drafting assistant with your own provider.
 - **English and Arabic** — Built-in translations, automatic layout direction, and JSON dictionaries for adding languages.
 
 ## Getting started
@@ -63,6 +65,8 @@ For deployment, SMTP, and the worker required for recurring tasks and scheduled 
 | Guide | Contents |
 | --- | --- |
 | [Operations](docs/operations.md) | Deployment, configuration, scheduled jobs, uploads, and backups |
+| [Email setup](docs/smtp.md) | SMTP host, port, sender, credentials, and connection checks |
+| [Integrations](docs/integrations.md) | Task API, webhooks, calendar subscriptions, and optional AI |
 | [Development](docs/development.md) | Architecture, localization, and running checks |
 | [Roadmap](docs/roadmap.md) | Completed work and planned features |
 

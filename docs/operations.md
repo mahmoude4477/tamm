@@ -112,3 +112,8 @@ Set `CLAMAV_HOST` to a trusted internal ClamAV daemon and `CLAMAV_PORT` (default
 ## UI primitives
 
 The owned components in `src/components/ui` use `@base-ui/react` with shadcn component conventions. `components.json` selects the Base UI style, and the locale provider supplies Base UI's direction context. Button and dialog changes preserve the app's visual tokens, form submission, focus management, Escape behavior, and RTL layout. Native selects and inputs remain native controls.
+
+
+## Current release configuration
+
+See [Email setup](smtp.md) for SMTP host/IP, TLS, login, sender, and the non-sending connection check. See [Integrations](integrations.md) for API keys, webhook allowlists and encryption keys, calendar feeds, and optional AI. Apply migrations 0006 and 0007 before starting this release. The existing worker now also dispatches webhooks.
