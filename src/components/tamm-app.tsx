@@ -1,9 +1,17 @@
 "use client";
+import { readRequest } from "@/lib/read-request";
+import { statusLabel } from "@/lib/status-label";
+import { Input } from "@/components/ui/input";
+import { FormSelect, SelectOption } from "@/components/ui/form-select";
+
 import { LocalePicker, useLocale } from "./locale-provider";
 import { ServerBoard } from "./server-board";
 import { ExtensionPanel } from "./extension-panel";
 import { PlanningPanel } from "./planning-panel";
-import { AnalyticsPanel } from "./analytics-panel";
+import dynamic from "next/dynamic";
+const AnalyticsPanel = dynamic(() =>
+  import("./analytics-panel").then((module) => module.AnalyticsPanel),
+);
 import { ManagerPanel } from "./manager-panel";
 import { TaskCalendar } from "./task-calendar";
 import { ReportingPanel } from "./reporting-panel";
@@ -185,6 +193,7 @@ export function TammApp({
   const [commandOpen, setCommandOpen] = useState(false);
   const [month, setMonth] = useState(today().slice(0, 7));
   const [selected, setSelected] = useState<string[]>([]);
+  const [taskRevision, setTaskRevision] = useState(0);
   const operation = useRef(false);
   const workspaceRef = useRef<Workspace | null>(null);
   workspaceRef.current = w;
@@ -194,8 +203,10 @@ export function TammApp({
       setLoaded(true);
       return;
     }
-    fetch(
+    const controller = new AbortController();
+    readRequest(
       `/api/workspace?${new URLSearchParams({ ...(initialPage === "tasks" ? { content: "metadata" } : {}), ...(new URLSearchParams(location.search).get("workspaceId") ? { workspaceId: new URLSearchParams(location.search).get("workspaceId")! } : {}) })}`,
+      { signal: controller.signal },
     )
       .then(async (r) => {
         if (r.status === 401) {
@@ -204,22 +215,27 @@ export function TammApp({
         }
         if (!r.ok) throw Error();
         const data = await r.json();
+        if (controller.signal.aborted) return;
         setW(data.workspace);
         const linkedTask = new URLSearchParams(location.search).get("task");
         if (linkedTask) setTaskId(linkedTask);
         setLoaded(true);
       })
-      .catch(() => {
+      .catch((error) => {
+        if (error.name === "AbortError") return;
         setError(en.common.error);
         setLoaded(true);
       });
+    return () => controller.abort();
   }, [demo]);
   useEffect(() => {
     if (demo) return;
     const reload = () => {
       const current = workspaceRef.current;
       if (current)
-        fetch(`/api/workspace?workspaceId=${encodeURIComponent(current.id)}`)
+        readRequest(
+          `/api/workspace?workspaceId=${encodeURIComponent(current.id)}`,
+        )
           .then((r) => (r.ok ? r.json() : Promise.reject()))
           .then((data) => {
             setW(data.workspace);
@@ -243,7 +259,7 @@ export function TammApp({
     )
       return;
     const controller = new AbortController();
-    fetch(`/api/workspace?workspaceId=${encodeURIComponent(w.id)}`, {
+    readRequest(`/api/workspace?workspaceId=${encodeURIComponent(w.id)}`, {
       signal: controller.signal,
     })
       .then(async (r) => {
@@ -299,6 +315,7 @@ export function TammApp({
         setW(data.workspace);
         setFullLoaded(true);
       }
+      setTaskRevision((value) => value + 1);
       return true;
     } catch (e) {
       setError(
@@ -386,7 +403,7 @@ export function TammApp({
                 .map(([k, v]) => [k, String(v)]),
             ),
           });
-          const r = await fetch(`/api/tasks?${q}`);
+          const r = await readRequest(`/api/tasks?${q}`);
           if (!r.ok) throw Error();
           const data = await r.json();
           total = data.total;
@@ -414,7 +431,10 @@ export function TammApp({
       ...exportItems.map((t) => [
         t.title,
         w.projects.find((p) => p.id === t.projectId)?.name,
-        w.statuses.find((s) => s.id === t.statusId)?.name,
+        statusLabel(
+          w.statuses.find((s) => s.id === t.statusId),
+          en,
+        ),
         en.priorities[t.priority],
         w.members.find((m) => m.id === t.assigneeId)?.name,
         t.dueDate,
@@ -450,7 +470,7 @@ export function TammApp({
         >
           <label>
             {en.auth.workspaceName}
-            <input name="name" required maxLength={100} />
+            <Input name="name" required maxLength={100} />
           </label>
           <Button disabled={busy}>
             {en.auth.createWorkspace}
@@ -554,8 +574,15 @@ export function TammApp({
               e.newStatusId &&
               e.previousStatusId !== e.newStatusId && (
                 <p className="muted">
-                  {w.statuses.find((s) => s.id === e.previousStatusId)?.name} →{" "}
-                  {w.statuses.find((s) => s.id === e.newStatusId)?.name}
+                  {statusLabel(
+                    w.statuses.find((s) => s.id === e.previousStatusId),
+                    en,
+                  )}{" "}
+                  →{" "}
+                  {statusLabel(
+                    w.statuses.find((s) => s.id === e.newStatusId),
+                    en,
+                  )}
                 </p>
               )}
             <time>{formatDate(e.createdAt)}</time>
@@ -647,7 +674,6 @@ export function TammApp({
             ))}
         </nav>
         <div className="sidebar-bottom">
-          <LocalePicker />
           {demo && (
             <div className="demo-note">
               <span>{en.nav.demo}</span>
@@ -715,6 +741,7 @@ export function TammApp({
           <ChevronRight size={13} />
           <strong>{project?.name ?? en.nav[page]}</strong>
           <div className="topbar-end">
+            <LocalePicker />
             <span className="today">
               {new Intl.DateTimeFormat(locale, {
                 weekday: "short",
@@ -934,7 +961,7 @@ export function TammApp({
                 <div className="toolbar-actions">
                   <div className="inline-search">
                     <Search size={15} />
-                    <input
+                    <Input
                       aria-label={en.common.search}
                       placeholder={en.common.searchShort}
                       value={search}
@@ -974,48 +1001,48 @@ export function TammApp({
               />
               {filter && (
                 <div className="filters">
-                  <select
+                  <FormSelect
                     aria-label={en.tasks.status}
                     value={status}
-                    onChange={(e) => setStatus(e.target.value)}
+                    onValueChange={(value) => setStatus(value)}
                   >
-                    <option value="">
+                    <SelectOption value="">
                       {en.tasks.status}: {en.common.all}
-                    </option>
+                    </SelectOption>
                     {w.statuses.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
+                      <SelectOption key={s.id} value={s.id}>
+                        {statusLabel(s, en)}
+                      </SelectOption>
                     ))}
-                  </select>
-                  <select
+                  </FormSelect>
+                  <FormSelect
                     aria-label={en.tasks.priority}
                     value={priority}
-                    onChange={(e) => setPriority(e.target.value)}
+                    onValueChange={(value) => setPriority(value)}
                   >
-                    <option value="">
+                    <SelectOption value="">
                       {en.tasks.priority}: {en.common.all}
-                    </option>
+                    </SelectOption>
                     {Object.entries(en.priorities).map(([v, l]) => (
-                      <option key={v} value={v}>
+                      <SelectOption key={v} value={v}>
                         {l}
-                      </option>
+                      </SelectOption>
                     ))}
-                  </select>
-                  <select
+                  </FormSelect>
+                  <FormSelect
                     aria-label={en.tasks.assignee}
                     value={assignee}
-                    onChange={(e) => setAssignee(e.target.value)}
+                    onValueChange={(value) => setAssignee(value)}
                   >
-                    <option value="">
+                    <SelectOption value="">
                       {en.tasks.assignee}: {en.common.all}
-                    </option>
+                    </SelectOption>
                     {w.members.map((m) => (
-                      <option key={m.id} value={m.id}>
+                      <SelectOption key={m.id} value={m.id}>
                         {m.name}
-                      </option>
+                      </SelectOption>
                     ))}
-                  </select>
+                  </FormSelect>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1033,6 +1060,7 @@ export function TammApp({
               )}
               {view === "board" && !demo && (
                 <ServerBoard
+                  dataRevision={taskRevision}
                   w={w}
                   filters={{
                     ...advanced,
@@ -1070,7 +1098,7 @@ export function TammApp({
                     >
                       <div className="column-header">
                         <StatusDot w={w} id={s.id} />
-                        <h3>{s.name}</h3>
+                        <h3>{statusLabel(s, en)}</h3>
                         <span>
                           {filtered.filter((t) => t.statusId === s.id).length}
                         </span>
@@ -1158,6 +1186,7 @@ export function TammApp({
               )}
               {view === "list" && (
                 <TaskTable
+                  dataRevision={taskRevision}
                   w={w}
                   demo={demo}
                   query={{
@@ -1308,7 +1337,7 @@ export function TammApp({
           <DialogDescription>{en.nav.workspace}</DialogDescription>
           <div className="command-input">
             <Search size={20} />
-            <input
+            <Input
               autoFocus
               aria-label={en.common.search}
               value={search}

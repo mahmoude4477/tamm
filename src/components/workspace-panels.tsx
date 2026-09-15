@@ -1,4 +1,8 @@
 "use client";
+import { statusLabel } from "@/lib/status-label";
+import { Input } from "@/components/ui/input";
+import { FormSelect, SelectOption } from "@/components/ui/form-select";
+
 import { AccountPanel } from "./account-panel";
 import { Button } from "@/components/ui/button";
 import {
@@ -176,51 +180,51 @@ export function TeamPanel({
                   </td>
                   <td>
                     {manage ? (
-                      <select
+                      <FormSelect
                         disabled={busy}
                         value={m.role}
                         aria-label={`${en.team.role} ${m.name}`}
-                        onChange={(e) =>
+                        onValueChange={(value) =>
                           send({
                             type: "member.update",
                             id: m.id,
-                            role: e.target.value as Role,
+                            role: value as Role,
                             teamId: m.teamId,
                           })
                         }
                       >
                         {Object.entries(en.team.roles).map(([v, l]) => (
-                          <option key={v} value={v}>
+                          <SelectOption key={v} value={v}>
                             {l}
-                          </option>
+                          </SelectOption>
                         ))}
-                      </select>
+                      </FormSelect>
                     ) : (
                       en.team.roles[m.role]
                     )}
                   </td>
                   <td>
                     {manage ? (
-                      <select
+                      <FormSelect
                         disabled={busy}
                         value={m.teamId ?? ""}
                         aria-label={`${en.team.team} ${m.name}`}
-                        onChange={(e) =>
+                        onValueChange={(value) =>
                           send({
                             type: "member.update",
                             id: m.id,
                             role: m.role,
-                            teamId: e.target.value || null,
+                            teamId: value || null,
                           })
                         }
                       >
-                        <option value="">{en.team.noTeam}</option>
+                        <SelectOption value="">{en.team.noTeam}</SelectOption>
                         {w.teams.map((t) => (
-                          <option key={t.id} value={t.id}>
+                          <SelectOption key={t.id} value={t.id}>
                             {t.name}
-                          </option>
+                          </SelectOption>
                         ))}
-                      </select>
+                      </FormSelect>
                     ) : (
                       (w.teams.find((t) => t.id === m.teamId)?.name ??
                       en.team.noTeam)
@@ -334,7 +338,7 @@ export function TeamPanel({
           >
             <label>
               {dialog === "member" ? en.team.email : en.team.name}
-              <input
+              <Input
                 name="name"
                 type={dialog === "member" ? "email" : "text"}
                 required
@@ -344,14 +348,14 @@ export function TeamPanel({
             {dialog === "team" && (
               <label>
                 {en.team.department}
-                <select name="department">
-                  <option value="">{en.common.none}</option>
+                <FormSelect name="department">
+                  <SelectOption value="">{en.common.none}</SelectOption>
                   {w.departments.map((d) => (
-                    <option key={d.id} value={d.id}>
+                    <SelectOption key={d.id} value={d.id}>
                       {d.name}
-                    </option>
+                    </SelectOption>
                   ))}
-                </select>
+                </FormSelect>
               </label>
             )}
             <Button disabled={busy}>{en.common.add}</Button>
@@ -409,7 +413,7 @@ export function ReportPanel({
     <>
       <Heading title={en.reports.title} subtitle={en.reports.subtitle}>
         <div className="button-row">
-          <input
+          <Input
             aria-label={en.reports.month}
             type="month"
             value={month}
@@ -503,7 +507,7 @@ export function SettingsPanel({
             {w.statuses.map((s) => (
               <div key={s.id}>
                 <StatusDot w={w} id={s.id} />
-                <strong>{s.name}</strong>
+                <strong>{statusLabel(s, en)}</strong>
                 <span>{en.settings.categories[s.category]}</span>
               </div>
             ))}
@@ -530,22 +534,22 @@ export function SettingsPanel({
             >
               <label>
                 {en.settings.statusName}
-                <input name="name" required maxLength={200} />
+                <Input name="name" required maxLength={200} />
               </label>
               <div className="form-grid">
                 <label>
                   {en.settings.category}
-                  <select name="category">
+                  <FormSelect name="category">
                     {Object.entries(en.settings.categories).map(([v, l]) => (
-                      <option key={v} value={v}>
+                      <SelectOption key={v} value={v}>
                         {l}
-                      </option>
+                      </SelectOption>
                     ))}
-                  </select>
+                  </FormSelect>
                 </label>
                 <label>
                   {en.projects.color}
-                  <input name="color" type="color" defaultValue="#6b8d79" />
+                  <Input name="color" type="color" defaultValue="#6b8d79" />
                 </label>
               </div>
               <Button variant="outline" disabled={busy}>
@@ -645,7 +649,7 @@ function AccountSettings() {
       >
         <label>
           {en.settings.currentPassword}
-          <input
+          <Input
             name="currentPassword"
             autoComplete="current-password"
             type="password"
@@ -654,7 +658,7 @@ function AccountSettings() {
         </label>
         <label>
           {en.settings.newPassword}
-          <input
+          <Input
             name="newPassword"
             autoComplete="new-password"
             type="password"

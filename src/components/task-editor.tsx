@@ -1,4 +1,10 @@
 "use client";
+import { statusLabel } from "@/lib/status-label";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { FormSelect, SelectOption } from "@/components/ui/form-select";
+
 import { TransferPanel } from "./operations-panel";
 import Markdown from "react-markdown";
 import { CommentPanel, FilePanel } from "./collaboration-panel";
@@ -67,7 +73,7 @@ export function TaskForm({
     >
       <label>
         {en.tasks.titleLabel}
-        <input
+        <Input
           autoFocus
           name="title"
           required
@@ -78,7 +84,7 @@ export function TaskForm({
       </label>
       <label>
         {en.tasks.description}
-        <textarea
+        <Textarea
           name="description"
           rows={4}
           maxLength={20000}
@@ -89,7 +95,7 @@ export function TaskForm({
       <div className="form-grid">
         <label>
           {en.tasks.project}
-          <select
+          <FormSelect
             name="projectId"
             required
             defaultValue={
@@ -101,54 +107,54 @@ export function TaskForm({
             {w.projects
               .filter((p) => !p.archived)
               .map((p) => (
-                <option key={p.id} value={p.id}>
+                <SelectOption key={p.id} value={p.id}>
                   {p.name}
-                </option>
+                </SelectOption>
               ))}
-          </select>
+          </FormSelect>
         </label>
         <label>
           {en.tasks.status}
-          <select
+          <FormSelect
             name="statusId"
             defaultValue={task?.statusId ?? w.statuses[0]?.id}
           >
             {w.statuses
               .filter((s) => s.category !== "done" || task?.statusId === s.id)
               .map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
+                <SelectOption key={s.id} value={s.id}>
+                  {statusLabel(s, en)}
+                </SelectOption>
               ))}
-          </select>
+          </FormSelect>
         </label>
         <label>
           {en.tasks.assignee}
-          <select
+          <FormSelect
             name="assigneeId"
             defaultValue={task?.assigneeId ?? w.currentUserId}
           >
-            <option value="">{en.common.unassigned}</option>
+            <SelectOption value="">{en.common.unassigned}</SelectOption>
             {w.members.map((p) => (
-              <option key={p.id} value={p.id}>
+              <SelectOption key={p.id} value={p.id}>
                 {p.name}
-              </option>
+              </SelectOption>
             ))}
-          </select>
+          </FormSelect>
         </label>
         <label>
           {en.tasks.priority}
-          <select name="priority" defaultValue={task?.priority ?? "medium"}>
+          <FormSelect name="priority" defaultValue={task?.priority ?? "medium"}>
             {Object.entries(en.priorities).map(([v, l]) => (
-              <option key={v} value={v}>
+              <SelectOption key={v} value={v}>
                 {l}
-              </option>
+              </SelectOption>
             ))}
-          </select>
+          </FormSelect>
         </label>
         <label>
           {en.tasks.startDate}
-          <input
+          <Input
             name="startDate"
             type="date"
             defaultValue={task?.startDate ?? ""}
@@ -156,7 +162,7 @@ export function TaskForm({
         </label>
         <label>
           {en.tasks.dueDate}
-          <input
+          <Input
             name="dueDate"
             type="date"
             defaultValue={task?.dueDate ?? ""}
@@ -164,7 +170,7 @@ export function TaskForm({
         </label>
         <label>
           {en.tasks.estimate}
-          <input
+          <Input
             name="estimatedHours"
             type="number"
             min={0}
@@ -175,21 +181,21 @@ export function TaskForm({
         </label>
         <label>
           {en.tasks.parent}
-          <select name="parentId" defaultValue={task?.parentId ?? ""}>
-            <option value="">{en.common.none}</option>
+          <FormSelect name="parentId" defaultValue={task?.parentId ?? ""}>
+            <SelectOption value="">{en.common.none}</SelectOption>
             {w.tasks
               .filter((t) => t.id !== task?.id && !t.deletedAt)
               .map((t) => (
-                <option key={t.id} value={t.id}>
+                <SelectOption key={t.id} value={t.id}>
                   {t.title}
-                </option>
+                </SelectOption>
               ))}
-          </select>
+          </FormSelect>
         </label>
       </div>
       <label>
         {en.tasks.tags}
-        <input
+        <Input
           name="tags"
           defaultValue={task?.tags.join(", ")}
           placeholder={en.tasks.tagsPlaceholder}
@@ -197,7 +203,7 @@ export function TaskForm({
       </label>
       <label>
         {en.tasks.dependencies}
-        <select
+        <FormSelect
           name="dependencies"
           multiple
           defaultValue={task?.dependencyIds ?? []}
@@ -205,16 +211,16 @@ export function TaskForm({
           {w.tasks
             .filter((t) => t.id !== task?.id && !t.deletedAt)
             .map((t) => (
-              <option key={t.id} value={t.id}>
+              <SelectOption key={t.id} value={t.id}>
                 {t.title}
-              </option>
+              </SelectOption>
             ))}
-        </select>
+        </FormSelect>
       </label>
       {task && (
         <label>
           {en.tasks.transferReason}
-          <input
+          <Input
             name="reason"
             maxLength={2000}
             placeholder={en.tasks.transferPlaceholder}
@@ -224,17 +230,17 @@ export function TaskForm({
       <div className="form-grid">
         <label>
           {en.collaboration.taskType}
-          <select name="taskType" defaultValue={task?.taskType ?? "task"}>
+          <FormSelect name="taskType" defaultValue={task?.taskType ?? "task"}>
             {(w.settings?.taskTypes ?? ["task", "bug", "request"]).map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
+              <SelectOption key={t} value={t}>
+                {en.taskTypes[t as keyof typeof en.taskTypes] ?? t}
+              </SelectOption>
             ))}
-          </select>
+          </FormSelect>
         </label>
         <label>
           {en.collaboration.actualHours}
-          <input
+          <Input
             type="number"
             name="actualHours"
             min="0"
@@ -246,7 +252,7 @@ export function TaskForm({
       </div>
       <label>
         {en.collaboration.assignees}
-        <select
+        <FormSelect
           multiple
           name="assigneeIds"
           defaultValue={task?.assigneeIds ?? []}
@@ -254,15 +260,15 @@ export function TaskForm({
           {w.members
             .filter((m) => m.active !== false)
             .map((m) => (
-              <option key={m.id} value={m.id}>
+              <SelectOption key={m.id} value={m.id}>
                 {m.name}
-              </option>
+              </SelectOption>
             ))}
-        </select>
+        </FormSelect>
       </label>
       <label>
         {en.collaboration.related}
-        <select
+        <FormSelect
           multiple
           name="relatedIds"
           defaultValue={task?.relatedIds ?? []}
@@ -270,24 +276,27 @@ export function TaskForm({
           {w.tasks
             .filter((t) => t.id !== task?.id && !t.deletedAt)
             .map((t) => (
-              <option key={t.id} value={t.id}>
+              <SelectOption key={t.id} value={t.id}>
                 {t.title}
-              </option>
+              </SelectOption>
             ))}
-        </select>
+        </FormSelect>
       </label>
       <label>
         {en.collaboration.duplicate}
-        <select name="duplicateOfId" defaultValue={task?.duplicateOfId ?? ""}>
-          <option value="">{en.collaboration.none}</option>
+        <FormSelect
+          name="duplicateOfId"
+          defaultValue={task?.duplicateOfId ?? ""}
+        >
+          <SelectOption value="">{en.collaboration.none}</SelectOption>
           {w.tasks
             .filter((t) => t.id !== task?.id && !t.deletedAt)
             .map((t) => (
-              <option key={t.id} value={t.id}>
+              <SelectOption key={t.id} value={t.id}>
                 {t.title}
-              </option>
+              </SelectOption>
             ))}
-        </select>
+        </FormSelect>
       </label>
       <div className="form-footer">
         <Button disabled={busy || !w.projects.some((p) => !p.archived)}>
@@ -330,12 +339,12 @@ export function ProjectForm({
     >
       <label>
         {en.projects.name}
-        <input name="name" required maxLength={200} />
+        <Input name="name" required maxLength={200} />
       </label>
       <div className="form-grid">
         <label>
           {en.projects.code}
-          <input
+          <Input
             name="code"
             required
             pattern="[A-Za-z][A-Za-z0-9]{1,7}"
@@ -344,27 +353,29 @@ export function ProjectForm({
         </label>
         <label>
           {en.projects.color}
-          <input name="color" type="color" defaultValue="#6b8d79" />
+          <Input name="color" type="color" defaultValue="#6b8d79" />
         </label>
       </div>
       <label>
         {en.projects.description}
-        <textarea name="description" maxLength={5000} />
+        <Textarea name="description" maxLength={5000} />
       </label>
       <label>
         {en.projects.visibility}
-        <select name="visibility">
-          <option value="organization">{en.projects.organization}</option>
-          <option value="private">{en.projects.private}</option>
-        </select>
+        <FormSelect name="visibility">
+          <SelectOption value="organization">
+            {en.projects.organization}
+          </SelectOption>
+          <SelectOption value="private">{en.projects.private}</SelectOption>
+        </FormSelect>
       </label>
       <fieldset>
         <legend>{en.projects.members}</legend>
         {w.members.map((m) => (
           <label className="checkbox-label" key={m.id}>
-            <input
+            <Checkbox
               name="members"
-              type="checkbox"
+
               value={m.id}
               defaultChecked={m.id === w.currentUserId}
             />
@@ -429,7 +440,10 @@ export function TaskDetail({
             <dt>{en.tasks.status}</dt>
             <dd>
               <StatusDot w={w} id={task.statusId} />
-              {w.statuses.find((s) => s.id === task.statusId)?.name}
+              {statusLabel(
+                w.statuses.find((s) => s.id === task.statusId),
+                en,
+              )}
             </dd>
             <dt>{en.tasks.priority}</dt>
             <dd>
@@ -461,20 +475,17 @@ export function TaskDetail({
             <h3>{en.tasks.checklist}</h3>
             {task.checklist.map((item) => (
               <label className="checklist-item" key={item.id}>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={item.done}
                   disabled={busy || !editable}
-                  onChange={async (e) => {
+                  onCheckedChange={async (checked) => {
                     await send({
                       type: "task.update",
                       id: task.id,
                       version: task.version,
                       data: {
                         checklist: task.checklist.map((c) =>
-                          c.id === item.id
-                            ? { ...c, done: e.target.checked }
-                            : c,
+                          c.id === item.id ? { ...c, done: checked } : c,
                         ),
                       },
                     });
@@ -507,7 +518,7 @@ export function TaskDetail({
                     form.reset();
                 }}
               >
-                <input
+                <Input
                   name="text"
                   aria-label={en.tasks.checklistPlaceholder}
                   placeholder={en.tasks.checklistPlaceholder}
@@ -549,7 +560,7 @@ export function TaskDetail({
                     <>
                       <label>
                         {en.tasks.reviewComment}
-                        <textarea
+                        <Textarea
                           value={review}
                           onChange={(e) => setReview(e.target.value)}
                           placeholder={en.tasks.reviewPlaceholder}

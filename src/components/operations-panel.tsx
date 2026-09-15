@@ -1,4 +1,8 @@
 "use client";
+import { readRequest } from "@/lib/read-request";
+import { Input } from "@/components/ui/input";
+import { FormSelect, SelectOption } from "@/components/ui/form-select";
+
 import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import type { Workspace, Task } from "@/lib/types";
@@ -21,7 +25,7 @@ export function TransferPanel({ w, task }: { w: Workspace; task?: Task }) {
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
   const url = `/api/transfers?workspaceId=${encodeURIComponent(w.id)}`;
   async function refresh() {
-    const r = await fetch(url);
+    const r = await readRequest(url);
     if (!r.ok) throw Error();
     setItems((await r.json()).items);
   }
@@ -66,19 +70,19 @@ export function TransferPanel({ w, task }: { w: Workspace; task?: Task }) {
           >
             <label>
               {en.tasks.assignee}
-              <select name="toId" required>
+              <FormSelect name="toId" required>
                 {w.members
                   .filter((m) => m.id !== actor.id && m.active !== false)
                   .map((m) => (
-                    <option key={m.id} value={m.id}>
+                    <SelectOption key={m.id} value={m.id}>
                       {m.name}
-                    </option>
+                    </SelectOption>
                   ))}
-              </select>
+              </FormSelect>
             </label>
             <label>
               {en.views.reason}
-              <input name="reason" required maxLength={2000} />
+              <Input name="reason" required maxLength={2000} />
             </label>
             <Button disabled={busy}>{en.views.transfer}</Button>
           </form>
@@ -131,7 +135,7 @@ export function TemplatePanel({ w }: { w: Workspace }) {
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
   const url = `/api/templates?workspaceId=${encodeURIComponent(w.id)}`;
   async function refresh() {
-    const r = await fetch(url);
+    const r = await readRequest(url);
     if (!r.ok) throw Error();
     setItems((await r.json()).items);
   }
@@ -176,17 +180,17 @@ export function TemplatePanel({ w }: { w: Workspace }) {
         >
           <label>
             {en.views.templateName}
-            <input name="name" required maxLength={100} />
+            <Input name="name" required maxLength={100} />
           </label>
           <label>
             {en.views.templates}
-            <select name="source" required>
+            <FormSelect name="source" required>
               {w.projects
                 .filter((p) => !p.deletedAt && p.visibility === "organization")
                 .map((p) => (
-                  <option key={p.id} value={`project:${p.id}`}>
+                  <SelectOption key={p.id} value={`project:${p.id}`}>
                     {en.admin.project}: {p.name}
-                  </option>
+                  </SelectOption>
                 ))}
               {w.tasks
                 .filter(
@@ -200,11 +204,11 @@ export function TemplatePanel({ w }: { w: Workspace }) {
                     ),
                 )
                 .map((t) => (
-                  <option key={t.id} value={`task:${t.id}`}>
+                  <SelectOption key={t.id} value={`task:${t.id}`}>
                     {t.title}
-                  </option>
+                  </SelectOption>
                 ))}
-            </select>
+            </FormSelect>
           </label>
           <Button disabled={busy}>{en.views.saveTemplate}</Button>
         </form>
@@ -232,25 +236,25 @@ export function TemplatePanel({ w }: { w: Workspace }) {
             {t.data.kind === "task" ? (
               <label>
                 {en.admin.project}
-                <select name="projectId" required>
+                <FormSelect name="projectId" required>
                   {w.projects
                     .filter((p) => !p.deletedAt && !p.archived)
                     .map((p) => (
-                      <option key={p.id} value={p.id}>
+                      <SelectOption key={p.id} value={p.id}>
                         {p.name}
-                      </option>
+                      </SelectOption>
                     ))}
-                </select>
+                </FormSelect>
               </label>
             ) : (
               <>
                 <label>
                   {en.admin.name}
-                  <input name="name" defaultValue={t.name} required />
+                  <Input name="name" defaultValue={t.name} required />
                 </label>
                 <label>
                   {en.projects.code}
-                  <input name="code" pattern="[A-Z][A-Z0-9]{1,7}" required />
+                  <Input name="code" pattern="[A-Z][A-Z0-9]{1,7}" required />
                 </label>
               </>
             )}

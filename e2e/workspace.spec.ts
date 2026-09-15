@@ -24,6 +24,20 @@ test("create, discuss, filter, resize and export work", async ({ page }) => {
     .getByLabel(en.tasks.description, { exact: true })
     .fill("A **reviewable** result.");
   await dialog
+    .getByRole("combobox", { name: en.collaboration.assignees, exact: true })
+    .click();
+  await page
+    .getByRole("option", { name: en.demo.people[1], exact: true })
+    .click();
+  await page.keyboard.press("Escape");
+  expect(
+    await dialog
+      .locator("form")
+      .evaluate((form) =>
+        new FormData(form as HTMLFormElement).getAll("assigneeIds"),
+      ),
+  ).toEqual(["person-1"]);
+  await dialog
     .getByRole("button", { name: en.common.newTask, exact: true })
     .click();
   await expect(dialog).toBeHidden();
@@ -42,7 +56,7 @@ test("create, discuss, filter, resize and export work", async ({ page }) => {
   await page.locator(".column-options summary").click();
   await page
     .locator(".column-options")
-    .getByLabel(en.admin.project, { exact: true })
+    .getByRole("checkbox", { name: en.admin.project, exact: true })
     .uncheck();
   await expect(
     page.getByRole("columnheader", { name: en.admin.project, exact: true }),
@@ -206,13 +220,16 @@ test("V1.5 planning, capacity, analytics and incremental board", async ({
     .filter({ has: page.getByLabel(en.planning.name, { exact: true }) });
   await form.getByLabel(en.planning.name, { exact: true }).fill(milestoneName);
   await form
-    .getByLabel(en.planning.project, { exact: true })
-    .selectOption({ label: "Shared project" });
-  const taskId = await form
-    .locator('select[name="tasks"] option')
-    .first()
-    .getAttribute("value");
-  await form.locator('select[name="tasks"]').selectOption(taskId!);
+    .getByRole("combobox", { name: en.planning.project, exact: true })
+    .click();
+  await page
+    .getByRole("option", { name: "Shared project", exact: true })
+    .click();
+  await form
+    .getByRole("combobox", { name: en.planning.tasks, exact: true })
+    .click();
+  await page.getByRole("option").first().click();
+  await page.keyboard.press("Escape");
   const saved = page.waitForResponse(
     (r) => r.url().includes("/api/planning") && r.request().method() === "POST",
   );
@@ -266,6 +283,7 @@ test("V1.5 planning, capacity, analytics and incremental board", async ({
     page.getByRole("columnheader", { name: en.planning.p85Days }),
   ).toBeVisible();
   await expect(page.locator(".health").first()).toBeVisible();
+  await expect(page.locator("[data-slot=chart]")).toHaveCount(3);
   const metadata = page.waitForResponse(
     (r) =>
       r.url().includes("/api/workspace?") &&
@@ -323,9 +341,10 @@ test("V2 custom values, time entries, calendar keys and Hijri preference", async
   await form.getByLabel(en.v2.name, { exact: true }).fill(fieldName);
   await form.getByRole("button", { name: en.v2.save, exact: true }).click();
   await expect(panel.getByRole("heading", { name: fieldName })).toBeVisible();
-  await panel
-    .getByLabel(en.v2.task, { exact: true })
-    .selectOption({ label: "Review delivery" });
+  await panel.getByRole("combobox", { name: en.v2.task, exact: true }).click();
+  await page
+    .getByRole("option", { name: "Review delivery", exact: true })
+    .click();
   const value = panel
     .locator(".extension-field")
     .filter({ has: page.getByLabel(fieldName, { exact: true }) });
@@ -380,13 +399,108 @@ test("V2 custom values, time entries, calendar keys and Hijri preference", async
     .getByRole("button", { name: en.v2.revoke, exact: true })
     .click();
   await expect(keyCard.getByText(en.v2.revoked, { exact: true })).toBeVisible();
+  await page
+    .getByRole("button", { name: en.nav.settings, exact: true })
+    .click();
   const hijri = page.getByRole("checkbox", { name: en.v2.hijri, exact: true });
   await hijri.check();
   await page.reload();
+  await page
+    .getByRole("button", { name: en.nav.settings, exact: true })
+    .click();
   await expect(
     page.getByRole("checkbox", { name: en.v2.hijri, exact: true }),
   ).toBeChecked();
   await page
     .getByRole("checkbox", { name: en.v2.hijri, exact: true })
     .uncheck();
+});
+
+test("one language menu, translated persisted statuses, and one initial board request", async ({
+  page,
+  baseURL,
+}) => {
+  const { createDemo } = await import("../src/lib/demo");
+  const w = createDemo(en);
+  const calls: string[] = [];
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    calls.push(url.pathname + url.search);
+    if (url.pathname === "/api/workspace")
+      return route.fulfill({ json: { workspace: w } });
+    if (url.pathname === "/api/tasks") {
+      const columns = Object.fromEntries(
+        w.statuses.map((s) => [
+          s.id,
+          {
+            items: w.tasks.filter((t) => t.statusId === s.id),
+            total: w.tasks.filter((t) => t.statusId === s.id).length,
+            page: 0,
+          },
+        ]),
+      );
+      return route.fulfill({
+        json:
+          url.searchParams.get("board") === "true"
+            ? { columns }
+            : { items: w.tasks, total: w.tasks.length },
+      });
+    }
+    if (url.pathname.endsWith("/organization/list"))
+      return route.fulfill({ json: [{ id: w.id, name: w.name }] });
+    if (url.pathname === "/api/notifications")
+      return route.fulfill({
+        json: { items: [], enabledKinds: [], emailEnabled: false },
+      });
+    if (url.pathname === "/api/views")
+      return route.fulfill({ json: { items: [] } });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto("/login");
+  const nav = page.locator(".auth-header nav");
+  await expect(
+    nav.getByRole("button", { name: en.common.language, exact: true }),
+  ).toHaveCount(1);
+  await nav
+    .getByRole("button", { name: en.common.language, exact: true })
+    .click();
+  await page
+    .getByRole("menuitemradio", { name: en.localeNames.ar, exact: true })
+    .click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "ar");
+  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+  await page.goto("/board");
+  await expect(
+    page.locator(".board-column h3").filter({ hasText: ar.demo.statuses[2] }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".board-column h3").filter({ hasText: en.demo.statuses[2] }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: ar.common.language, exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    page
+      .locator(".sidebar")
+      .getByRole("button", { name: ar.common.language, exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator("select")).toHaveCount(0);
+  expect(calls.filter((url) => url.startsWith("/api/workspace?"))).toHaveLength(
+    1,
+  );
+  expect(calls.filter((url) => url.startsWith("/api/tasks?"))).toHaveLength(1);
+  expect(calls.find((url) => url.startsWith("/api/tasks?"))).toContain(
+    "board=true",
+  );
+  await page.getByRole("button", { name: ar.tasks.list, exact: true }).click();
+  await expect(
+    page
+      .locator("tbody")
+      .getByRole("button", { name: new RegExp(w.tasks[0].title) }),
+  ).toBeVisible();
+  expect(
+    calls.filter(
+      (url) => url.startsWith("/api/tasks?") && !url.includes("board=true"),
+    ),
+  ).toHaveLength(1);
 });

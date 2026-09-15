@@ -1,4 +1,7 @@
 "use client";
+import { readRequest } from "@/lib/read-request";
+import { Input } from "@/components/ui/input";
+
 import { useState, useEffect } from "react";
 import type { Workspace, Task } from "@/lib/types";
 import { useMessages, useLocale, useDates } from "./locale-provider";
@@ -33,7 +36,7 @@ export function TaskCalendar({
   useEffect(() => {
     if (demo) return;
     const controller = new AbortController();
-    fetch(`/api/planning?workspaceId=${encodeURIComponent(w.id)}`, {
+    readRequest(`/api/planning?workspaceId=${encodeURIComponent(w.id)}`, {
       signal: controller.signal,
     })
       .then(async (r) => {
@@ -96,7 +99,7 @@ export function TaskCalendar({
         <Button variant="outline" onClick={() => shift(-1)}>
           {en.common.back}
         </Button>
-        <input
+        <Input
           aria-label={en.views.calendarDates}
           type="date"
           value={selected}

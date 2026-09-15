@@ -1,13 +1,13 @@
 "use client";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+
+import { AuthHeader } from "./auth-header";
 import { useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "./ui/button";
-import {
-  LocalePicker,
-  useMessages,
-  useDates,
-} from "@/components/locale-provider";
+import { useMessages } from "@/components/locale-provider";
 export function AccountFlow({
   mode,
 }: {
@@ -20,10 +20,7 @@ export function AccountFlow({
     [backup, setBackup] = useState(false);
   return (
     <main className="auth-page">
-      <LocalePicker />
-      <Link className="brand" href="/">
-        {en.brand.name} <span lang="ar">{en.brand.arabic}</span>
-      </Link>
+      <AuthHeader />
       <form
         className="auth-form"
         onSubmit={async (e) => {
@@ -81,13 +78,13 @@ export function AccountFlow({
         {mode === "forgot" && (
           <label>
             {en.account.email}
-            <input name="email" type="email" autoComplete="email" required />
+            <Input name="email" type="email" autoComplete="email" required />
           </label>
         )}
         {mode === "reset" && (
           <label>
             {en.account.newPassword}
-            <input
+            <Input
               name="password"
               type="password"
               minLength={12}
@@ -100,7 +97,7 @@ export function AccountFlow({
           <>
             <label>
               {backup ? en.account.recoveryCode : en.account.code}
-              <input
+              <Input
                 name="code"
                 autoComplete="one-time-code"
                 inputMode={backup ? "text" : "numeric"}
@@ -108,10 +105,9 @@ export function AccountFlow({
               />
             </label>
             <label>
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={backup}
-                onChange={(e) => setBackup(e.target.checked)}
+                onCheckedChange={(checked) => setBackup(checked)}
               />
               {en.account.recoveryCode}
             </label>

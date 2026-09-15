@@ -1,4 +1,8 @@
 "use client";
+import { statusLabel } from "@/lib/status-label";
+import { Input } from "@/components/ui/input";
+import { FormSelect, SelectOption } from "@/components/ui/form-select";
+
 import { useState } from "react";
 import type { Workspace } from "@/lib/types";
 import { matchesFilters, type TaskFilters } from "@/lib/task-filters";
@@ -159,7 +163,7 @@ export function ReportingPanel({
   return (
     <>
       <Heading title={en.reports.title} subtitle={en.reports.subtitle}>
-        <input
+        <Input
           aria-label={en.reports.month}
           type="month"
           value={month}
@@ -190,7 +194,7 @@ export function ReportingPanel({
             value: status,
             set: setStatus,
             label: en.tasks.status,
-            items: w.statuses,
+            items: w.statuses.map((s) => ({ ...s, name: statusLabel(s, en) })),
           },
           {
             value: priority,
@@ -204,14 +208,14 @@ export function ReportingPanel({
         ].map((f) => (
           <label key={f.label}>
             {f.label}
-            <select value={f.value} onChange={(e) => f.set(e.target.value)}>
-              <option value="">{en.admin.all}</option>
+            <FormSelect value={f.value} onValueChange={(value) => f.set(value)}>
+              <SelectOption value="">{en.admin.all}</SelectOption>
               {f.items.map((i) => (
-                <option key={i.id} value={i.id}>
+                <SelectOption key={i.id} value={i.id}>
                   {i.name}
-                </option>
+                </SelectOption>
               ))}
-            </select>
+            </FormSelect>
           </label>
         ))}
       </div>

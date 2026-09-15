@@ -1,4 +1,10 @@
 "use client";
+import { readRequest } from "@/lib/read-request";
+import { statusLabel } from "@/lib/status-label";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FormSelect, SelectOption } from "@/components/ui/form-select";
+
 import { useMemo, useState, useEffect } from "react";
 import {
   useReactTable,
@@ -18,6 +24,7 @@ import { Button } from "./ui/button";
 import { useMessages, useDates } from "@/components/locale-provider";
 export function TaskTable({
   w,
+  dataRevision = 0,
   tasks,
   onTask,
   send,
@@ -26,6 +33,7 @@ export function TaskTable({
   query = {},
 }: {
   w: Workspace;
+  dataRevision?: number;
   tasks: Task[];
   onTask: (id: string) => void;
   send: Send;
@@ -47,7 +55,11 @@ export function TaskTable({
   }>({ items: [], total: 0 });
   const [loadError, setLoadError] = useState("");
   const queryKey = JSON.stringify(query);
-  useEffect(() => setPagination((p) => ({ ...p, pageIndex: 0 })), [queryKey]);
+  useEffect(
+    () =>
+      setPagination((p) => (p.pageIndex === 0 ? p : { ...p, pageIndex: 0 })),
+    [queryKey],
+  );
   useEffect(() => {
     if (demo) return;
     const abort = new AbortController();
@@ -64,7 +76,7 @@ export function TaskTable({
       ),
     });
     setLoadError("");
-    fetch(`/api/tasks?${params}`, { signal: abort.signal })
+    readRequest(`/api/tasks?${params}`, { signal: abort.signal })
       .then(async (r) => {
         if (!r.ok) throw Error();
         setServerData(await r.json());
@@ -73,7 +85,15 @@ export function TaskTable({
         if (e.name !== "AbortError") setLoadError(en.common.error);
       });
     return () => abort.abort();
-  }, [demo, w.id, w.tasks, queryKey, pagination, sorting, en.common.error]);
+  }, [
+    demo,
+    w.id,
+    dataRevision,
+    queryKey,
+    pagination,
+    sorting,
+    en.common.error,
+  ]);
   const actor = w.members.find((m) => m.id === w.currentUserId)!;
   const columns = useMemo<ColumnDef<Task>[]>(
     () => [
@@ -83,19 +103,19 @@ export function TaskTable({
         enableHiding: false,
         size: 50,
         header: ({ table }) => (
-          <input
-            type="checkbox"
+          <Checkbox
             aria-label={en.common.select}
             checked={table.getIsAllPageRowsSelected()}
-            onChange={table.getToggleAllPageRowsSelectedHandler()}
+            onCheckedChange={(checked) =>
+              table.toggleAllPageRowsSelected(checked)
+            }
           />
         ),
         cell: ({ row }) => (
-          <input
-            type="checkbox"
+          <Checkbox
             aria-label={`${en.common.select} ${row.original.title}`}
             checked={row.getIsSelected()}
-            onChange={row.getToggleSelectedHandler()}
+            onCheckedChange={(checked) => row.toggleSelected(checked)}
           />
         ),
       },
@@ -116,7 +136,11 @@ export function TaskTable({
       },
       {
         id: "status",
-        accessorFn: (t) => w.statuses.find((s) => s.id === t.statusId)?.name,
+        accessorFn: (t) =>
+          statusLabel(
+            w.statuses.find((s) => s.id === t.statusId),
+            en,
+          ),
         header: en.tasks.status,
       },
       {
@@ -179,10 +203,9 @@ export function TaskTable({
           .filter((c) => c.getCanHide())
           .map((c) => (
             <label className="checklist-item" key={c.id}>
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={c.getIsVisible()}
-                onChange={c.getToggleVisibilityHandler()}
+                onCheckedChange={(checked) => c.toggleVisibility(checked)}
               />
               {String(c.columnDef.header)}
             </label>
@@ -219,7 +242,7 @@ export function TaskTable({
                     )}
                     <div
                       role="separator"
-                      aria-label={`${en.views.resize} ${String(h.column.columnDef.header)}`}
+                      aria-label={`${en.views.resize} ${typeof h.column.columnDef.header === "string" ? h.column.columnDef.header : en.common.select}`}
                       aria-orientation="vertical"
                       tabIndex={0}
                       className="column-resize"
@@ -328,69 +351,76 @@ export function TaskTable({
           </b>
           <label>
             {en.views.field}
-            <select value={field} onChange={(e) => setField(e.target.value)}>
-              <option value="statusId">{en.tasks.status}</option>
-              <option value="priority">{en.tasks.priority}</option>
+            <FormSelect
+              value={field}
+              onValueChange={(value) => setField(value)}
+            >
+              <SelectOption value="statusId">{en.tasks.status}</SelectOption>
+              <SelectOption value="priority">{en.tasks.priority}</SelectOption>
               {can(actor.role, "task.assign", actor.permissions) && (
-                <option value="assigneeId">{en.tasks.assignee}</option>
+                <SelectOption value="assigneeId">
+                  {en.tasks.assignee}
+                </SelectOption>
               )}
               {can(actor.role, "project.manage", actor.permissions) && (
-                <option value="projectId">{en.admin.project}</option>
+                <SelectOption value="projectId">
+                  {en.admin.project}
+                </SelectOption>
               )}
-              <option value="dueDate">{en.tasks.dueDate}</option>
-              <option value="tag">{en.views.tag}</option>
+              <SelectOption value="dueDate">{en.tasks.dueDate}</SelectOption>
+              <SelectOption value="tag">{en.views.tag}</SelectOption>
               {can(actor.role, "task.delete", actor.permissions) && (
-                <option value="archived">{en.views.archive}</option>
+                <SelectOption value="archived">{en.views.archive}</SelectOption>
               )}
-            </select>
+            </FormSelect>
           </label>
           {["statusId", "priority", "assigneeId", "projectId"].includes(
             field,
           ) ? (
             <label>
               {en.views.value}
-              <select name="value" key={field}>
+              <FormSelect name="value" key={field}>
                 {field === "statusId" ? (
                   w.statuses
                     .filter((s) => s.category !== "done")
                     .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
+                      <SelectOption key={s.id} value={s.id}>
+                        {statusLabel(s, en)}
+                      </SelectOption>
                     ))
                 ) : field === "priority" ? (
                   Object.entries(en.priorities).map(([v, l]) => (
-                    <option key={v} value={v}>
+                    <SelectOption key={v} value={v}>
                       {l}
-                    </option>
+                    </SelectOption>
                   ))
                 ) : field === "assigneeId" ? (
                   <>
-                    <option value="">{en.common.unassigned}</option>
+                    <SelectOption value="">{en.common.unassigned}</SelectOption>
                     {w.members
                       .filter((m) => m.active !== false)
                       .map((m) => (
-                        <option key={m.id} value={m.id}>
+                        <SelectOption key={m.id} value={m.id}>
                           {m.name}
-                        </option>
+                        </SelectOption>
                       ))}
                   </>
                 ) : (
                   w.projects
                     .filter((p) => !p.deletedAt && !p.archived)
                     .map((p) => (
-                      <option key={p.id} value={p.id}>
+                      <SelectOption key={p.id} value={p.id}>
                         {p.name}
-                      </option>
+                      </SelectOption>
                     ))
                 )}
-              </select>
+              </FormSelect>
             </label>
           ) : (
             field !== "archived" && (
               <label>
                 {en.views.value}
-                <input
+                <Input
                   key={field}
                   name="value"
                   type={field === "dueDate" ? "date" : "text"}
@@ -403,7 +433,7 @@ export function TaskTable({
           {field === "assigneeId" && (
             <label>
               {en.views.reason}
-              <input name="reason" required maxLength={2000} />
+              <Input name="reason" required maxLength={2000} />
             </label>
           )}
           <Button

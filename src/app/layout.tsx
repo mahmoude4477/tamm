@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import en from "@/messages/en.json";
 import { cookies } from "next/headers";
-import { resolveLocale, locales } from "@/lib/i18n";
+import { resolveLocale, locales, getMessages } from "@/lib/i18n";
 import { LocaleProvider } from "@/components/locale-provider";
 import "./globals.css";
-export const metadata: Metadata = {
-  title: en.meta.title,
-  description: en.meta.description,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = resolveLocale((await cookies()).get("tamm-locale")?.value);
+  const messages = getMessages(locale);
+  return { title: messages.meta.title, description: messages.meta.description };
+}
 export default async function RootLayout({
   children,
 }: {

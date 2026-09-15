@@ -7,6 +7,7 @@ import {
   asc,
   desc,
   count,
+  lte,
   inArray,
 } from "drizzle-orm";
 import { z } from "zod";
@@ -16,6 +17,7 @@ import { getIdentity, resolveMembership, apiError } from "@/lib/server-context";
 import { DomainError } from "@/lib/commands";
 import { today } from "@/lib/dates";
 const schema = z.object({
+  board: z.enum(["true", "false"]).default("false"),
   page: z.coerce.number().int().min(0).max(10000).default(0),
   size: z.coerce.number().int().min(1).max(100).default(25),
   sort: z
@@ -145,20 +147,48 @@ export async function GET(request: Request) {
       .innerJoin(s.projects, eq(s.projects.id, s.tasks.projectId))
       .innerJoin(s.statuses, eq(s.statuses.id, s.tasks.statusId))
       .leftJoin(s.user, eq(s.user.id, s.tasks.assigneeId));
-    const [rows, total] = await Promise.all([
-      base
-        .where(filters)
-        .orderBy(order, asc(s.tasks.id))
-        .limit(q.size)
-        .offset(q.page * q.size),
-      db
-        .select({ value: count() })
-        .from(s.tasks)
-        .innerJoin(s.projects, eq(s.projects.id, s.tasks.projectId))
-        .innerJoin(s.statuses, eq(s.statuses.id, s.tasks.statusId))
-        .leftJoin(s.user, eq(s.user.id, s.tasks.assigneeId))
-        .where(filters),
-    ]);
+    // Rank within each visible status: one bounded board response instead of a request per column.
+    const ranked = db
+      .select({
+        task: s.tasks,
+        position:
+          sql<number>`row_number() over(partition by ${s.tasks.statusId} order by ${order}, ${s.tasks.id} asc)`.as(
+            "position",
+          ),
+        total: sql<number>`count(*) over(partition by ${s.tasks.statusId})`.as(
+          "column_total",
+        ),
+      })
+      .from(s.tasks)
+      .innerJoin(s.projects, eq(s.projects.id, s.tasks.projectId))
+      .innerJoin(s.statuses, eq(s.statuses.id, s.tasks.statusId))
+      .leftJoin(s.user, eq(s.user.id, s.tasks.assigneeId))
+      .where(filters)
+      .as("ranked");
+    const boardRows =
+      q.board === "true"
+        ? await db
+            .select()
+            .from(ranked)
+            .where(lte(ranked.position, Math.min(q.size, 25)))
+            .orderBy(ranked.position)
+        : null;
+    const [rows, total] = boardRows
+      ? [boardRows, [{ value: 0 }]]
+      : await Promise.all([
+          base
+            .where(filters)
+            .orderBy(order, asc(s.tasks.id))
+            .limit(q.size)
+            .offset(q.page * q.size),
+          db
+            .select({ value: count() })
+            .from(s.tasks)
+            .innerJoin(s.projects, eq(s.projects.id, s.tasks.projectId))
+            .innerJoin(s.statuses, eq(s.statuses.id, s.tasks.statusId))
+            .leftJoin(s.user, eq(s.user.id, s.tasks.assigneeId))
+            .where(filters),
+        ]);
     const ids = rows.map((r) => r.task.id),
       dependencies = ids.length
         ? await db
@@ -171,16 +201,28 @@ export async function GET(request: Request) {
               ),
             )
         : [];
+    const items = rows.map(({ task: { workspaceId: _, ...task } }) => ({
+      ...task,
+      dependencyIds: dependencies
+        .filter((d) => d.taskId === task.id)
+        .map((d) => d.dependsOnId),
+    }));
+    const columns: Record<
+      string,
+      { items: typeof items; total: number; page: number }
+    > = {};
+    if (boardRows)
+      for (let i = 0; i < boardRows.length; i++) {
+        const row = boardRows[i];
+        columns[row.task.statusId] ??= {
+          items: [],
+          total: Number(row.total),
+          page: 0,
+        };
+        columns[row.task.statusId].items.push(items[i]);
+      }
     return Response.json(
-      {
-        items: rows.map(({ task: { workspaceId: _, ...task } }) => ({
-          ...task,
-          dependencyIds: dependencies
-            .filter((d) => d.taskId === task.id)
-            .map((d) => d.dependsOnId),
-        })),
-        total: total[0].value,
-      },
+      boardRows ? { columns } : { items, total: total[0].value },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (e) {

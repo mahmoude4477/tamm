@@ -1,4 +1,8 @@
 "use client";
+import { readRequest } from "@/lib/read-request";
+import { Input } from "@/components/ui/input";
+import { FormSelect, SelectOption } from "@/components/ui/form-select";
+
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "./ui/button";
@@ -12,34 +16,38 @@ export function WorkspaceSwitcher({ w }: { w: Workspace }) {
   const [items, setItems] = useState<{ id: string; name: string }[]>([]),
     [error, setError] = useState("");
   useEffect(() => {
-    authClient.organization
-      .list()
-      .then((r) => {
-        if (r.data) setItems(r.data);
-        else setError(en.common.error);
+    const controller = new AbortController();
+    readRequest("/api/auth/organization/list", { signal: controller.signal })
+      .then(async (r) => {
+        if (!r.ok) throw Error();
+        const items = await r.json();
+        if (!controller.signal.aborted) setItems(items);
       })
-      .catch(() => setError(en.common.error));
-  }, [w.id]);
+      .catch((error) => {
+        if (error.name !== "AbortError") setError(en.common.error);
+      });
+    return () => controller.abort();
+  }, [w.id, en.common.error]);
   return (
     <div className="workspace-switcher">
       <label>
         {en.account.workspace}
-        <select
+        <FormSelect
           value={w.id}
-          onChange={async (e) => {
+          onValueChange={async (value) => {
             const r = await authClient.organization.setActive({
-              organizationId: e.target.value,
+              organizationId: value,
             });
             if (r.error) setError(en.common.error);
             else window.location.assign("/workspace");
           }}
         >
           {items.map((o) => (
-            <option key={o.id} value={o.id}>
+            <SelectOption key={o.id} value={o.id}>
               {o.name}
-            </option>
+            </SelectOption>
           ))}
-        </select>
+        </FormSelect>
       </label>
       <details>
         <summary>{en.account.createWorkspace}</summary>
@@ -68,7 +76,7 @@ export function WorkspaceSwitcher({ w }: { w: Workspace }) {
         >
           <label>
             {en.admin.name}
-            <input name="name" required maxLength={100} />
+            <Input name="name" required maxLength={100} />
           </label>
           <Button>{en.account.createWorkspace}</Button>
         </form>
@@ -127,28 +135,28 @@ export function InvitationPanel({ w }: { w: Workspace }) {
       >
         <label>
           {en.account.email}
-          <input name="email" type="email" required />
+          <Input name="email" type="email" required />
         </label>
         <label>
           {en.account.role}
-          <select name="role">
+          <FormSelect name="role">
             {["member", "viewer", "manager", "admin"].map((role) => (
-              <option key={role} value={role}>
+              <SelectOption key={role} value={role}>
                 {en.team.roles[role as keyof typeof en.team.roles]}
-              </option>
+              </SelectOption>
             ))}
-          </select>
+          </FormSelect>
         </label>
         <label>
           {en.admin.teams}
-          <select name="teamId">
-            <option value="">{en.collaboration.none}</option>
+          <FormSelect name="teamId">
+            <SelectOption value="">{en.collaboration.none}</SelectOption>
             {w.teams.map((t) => (
-              <option key={t.id} value={t.id}>
+              <SelectOption key={t.id} value={t.id}>
                 {t.name}
-              </option>
+              </SelectOption>
             ))}
-          </select>
+          </FormSelect>
         </label>
         <Button disabled={busy}>{en.account.invite}</Button>
       </form>

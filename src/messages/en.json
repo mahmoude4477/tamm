@@ -750,5 +750,20 @@
     "hijri": "Show Hijri dates",
     "limit": "Daily assistant limit reached.",
     "demo": "Sign in to use persistent tools and integrations."
+  },
+  "taskTypes": {
+    "task": "Task",
+    "bug": "Bug",
+    "request": "Request"
+  },
+  "analyticsUI": {
+    "subtitle": "Understand delivery, spot delays, and plan your next week.",
+    "summary": "Delivery overview",
+    "distribution": "Work by project",
+    "noData": "No tasks match these filters.",
+    "loading": "Loading analytics…",
+    "projectDetails": "Project details",
+    "weeklyDetails": "Weekly totals",
+    "agingDetails": "Task age totals"
   }
 }
