@@ -44,7 +44,7 @@ export async function GET(request: Request) {
       q = new URL(request.url).searchParams;
     const from = day.parse(q.get("from") ?? addDays(date, -83)),
       to = day.parse(q.get("to") ?? date),
-      project = q.get("project");
+      project = q.get("project") || null;
     if (from > to || daysBetween(from, to) > 730)
       throw new DomainError("invalid");
     const visible = sql`p.workspace_id=${m.workspaceId} and p.deleted_at is null and not p.archived and (${project ?? null}::text is null or p.id=${project ?? null}) and (p.visibility='organization' or ${["owner", "admin"].includes(m.role)} or exists(select 1 from project_member pm where pm.project_id=p.id and pm.user_id=${identity.user.id}))`;
