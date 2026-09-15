@@ -345,8 +345,52 @@ export function TammApp({
   );
   const task = w?.tasks.find((t) => t.id === taskId);
   const project = w?.projects.find((p) => p.id === projectId);
-  function exportTasks() {
+  async function exportTasks() {
     if (!w) return;
+    let exportItems = filtered;
+    if (!demo) {
+      setBusy(true);
+      setError("");
+      try {
+        const items = new Map<string, Task>();
+        let pageIndex = 0,
+          total = 1;
+        while (pageIndex * 100 < total) {
+          const values = {
+            ...advanced,
+            project: projectId ?? undefined,
+            search,
+            status,
+            priority,
+            assignee,
+            scope: page === "myTasks" ? myScope : undefined,
+          };
+          const q = new URLSearchParams({
+            workspaceId: w.id,
+            size: "100",
+            page: String(pageIndex),
+            ...Object.fromEntries(
+              Object.entries(values)
+                .filter(([, v]) => v !== undefined && v !== "")
+                .map(([k, v]) => [k, String(v)]),
+            ),
+          });
+          const r = await fetch(`/api/tasks?${q}`);
+          if (!r.ok) throw Error();
+          const data = await r.json();
+          total = data.total;
+          for (const task of data.items) items.set(task.id, task);
+          pageIndex++;
+          if (!data.items.length) break;
+        }
+        exportItems = [...items.values()];
+      } catch {
+        setError(en.common.error);
+        return;
+      } finally {
+        setBusy(false);
+      }
+    }
     const rows = [
       [
         en.tasks.titleLabel,
@@ -356,7 +400,7 @@ export function TammApp({
         en.tasks.assignee,
         en.tasks.dueDate,
       ],
-      ...filtered.map((t) => [
+      ...exportItems.map((t) => [
         t.title,
         w.projects.find((p) => p.id === t.projectId)?.name,
         w.statuses.find((s) => s.id === t.statusId)?.name,
@@ -554,7 +598,7 @@ export function TammApp({
               >
                 <Icon size={18} />
                 {en.nav[key]}
-                {key === "myTasks" && (
+                {key === "myTasks" && fullLoaded && (
                   <span className="nav-count">
                     {
                       tasks.filter(
@@ -1122,15 +1166,21 @@ export function TammApp({
               )}
               {view === "calendar" && (
                 <TaskCalendar
+                  demo={demo}
                   w={w}
                   tasks={filtered}
                   open={setTaskId}
                   openProject={(id) => navigate("projects", id)}
                 />
               )}{" "}
-              {!filtered.length && view !== "board" && (
-                <Empty title={en.common.noResults} note={en.tasks.emptyNote} />
-              )}
+              {!filtered.length &&
+                view !== "board" &&
+                (demo || view === "calendar") && (
+                  <Empty
+                    title={en.common.noResults}
+                    note={en.tasks.emptyNote}
+                  />
+                )}
             </>
           )}
           {page === "planning" && (

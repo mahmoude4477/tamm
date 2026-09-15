@@ -115,6 +115,7 @@ export function PlanningPanel({
           <button
             key={t}
             className={tab === t ? "active" : ""}
+            aria-pressed={tab === t}
             onClick={() => setTab(t as typeof tab)}
           >
             {p[t as typeof tab]}

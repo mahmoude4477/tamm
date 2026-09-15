@@ -176,3 +176,104 @@ test("overview accessibility and reduced-motion controls", async ({ page }) => {
       style: "nextjs-portal { display: none; }",
     });
 });
+
+test("V1.5 planning, capacity, analytics and incremental board", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.RUN_AUTH_E2E !== "true",
+    "Requires the PostgreSQL test service.",
+  );
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/login");
+  await page
+    .getByLabel(en.auth.email, { exact: true })
+    .fill("owner@example.com");
+  await page
+    .getByLabel(en.auth.password, { exact: true })
+    .fill("test-only-password-49Qv!");
+  await page.getByRole("button", { name: en.auth.signIn, exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: en.overview.title }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: en.nav.planning, exact: true })
+    .click();
+  const form = page
+    .locator("form")
+    .filter({ has: page.getByLabel(en.planning.name, { exact: true }) });
+  await form
+    .getByLabel(en.planning.name, { exact: true })
+    .fill("Browser milestone");
+  await form
+    .getByLabel(en.planning.project, { exact: true })
+    .selectOption({ label: "Shared project" });
+  const taskId = await form
+    .locator('select[name="tasks"] option')
+    .first()
+    .getAttribute("value");
+  await form.locator('select[name="tasks"]').selectOption(taskId!);
+  await form
+    .getByRole("button", { name: en.planning.save, exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Browser milestone" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: en.planning.recurring, exact: true })
+    .click();
+  const rule = page
+    .locator("article")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Weekly operations",
+        exact: true,
+      }),
+    });
+  await rule
+    .getByRole("button", { name: en.planning.pause, exact: true })
+    .click();
+  await expect(
+    rule.getByText(en.planning.paused, { exact: true }),
+  ).toBeVisible();
+  await rule
+    .getByRole("button", { name: en.planning.resume, exact: true })
+    .click();
+  await expect(
+    rule.getByText(en.planning.enabled, { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: en.planning.capacity, exact: true })
+    .click();
+  const hours = page.getByRole("spinbutton", {
+    name: `${en.planning.available}: Example Owner`,
+    exact: true,
+  });
+  await hours.fill("16");
+  await hours
+    .locator("..")
+    .getByRole("button", { name: en.planning.save, exact: true })
+    .click();
+  await expect(hours).toHaveValue("16");
+  await page
+    .getByRole("button", { name: en.nav.analytics, exact: true })
+    .click();
+  await expect(
+    page.getByRole("columnheader", { name: en.planning.p85Days }),
+  ).toBeVisible();
+  await expect(page.locator(".health").first()).toBeVisible();
+  const metadata = page.waitForResponse(
+    (r) =>
+      r.url().includes("/api/workspace?") &&
+      r.url().includes("content=metadata"),
+  );
+  await page.goto("/board");
+  expect((await (await metadata).json()).workspace.tasks).toEqual([]);
+  await expect(page.locator(".task-card").first()).toBeVisible();
+  await page.locator(".task-card").first().click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toBeHidden();
+  expect(errors).toEqual([]);
+});

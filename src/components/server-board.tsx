@@ -136,7 +136,9 @@ export function ServerBoard({
                       key={t.id}
                       className="task-card"
                       draggable={canEditTask(w, t)}
-                      onDragStart={() => {
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("text/plain", t.id);
+                        e.dataTransfer.effectAllowed = "move";
                         dragged.current = t;
                       }}
                       onDragEnd={() => {
