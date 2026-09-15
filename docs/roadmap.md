@@ -2,7 +2,7 @@
 
 [Back to README](../README.md) · [العربية](roadmap.ar.md)
 
-Implementation tracking and planned work. Unchecked items are planned, with no committed delivery date.
+Implementation record for the current release. The agreed roadmap is complete; optional integrations and AI require operator configuration. See [integration setup and operating limits](integrations.md).
 
 ## V1 checklist
 
@@ -52,12 +52,12 @@ A checked item means implemented and covered by the release validation. Unchecke
 - [x] Base UI button/dialog primitives and RTL direction provider, with shadcn configuration.
 - [x] Final V1.5 PostgreSQL and browser validation.
 
-## Remaining work — V2
+## V2 — completed current scope
 
-- [ ] Configurable custom fields.
-- [ ] Timers, manual time entries, and time reports.
-- [ ] Public REST API, webhooks, and integration credentials.
-- [ ] Calendar and organizational-system integrations.
-- [ ] Optional Hijri date display.
-- [ ] Optional AI drafting, summaries, and planning assistance.
+- [x] Configurable custom fields.
+- [x] Timers, manual time entries, and time reports.
+- [x] Public REST API, webhooks, and integration credentials.
+- [x] Read-only calendar subscriptions and task API/webhooks for organizational-system integrations.
+- [x] Optional Hijri date display.
+- [x] Optional AI drafting, summaries, and planning assistance, with reviewed text output and no automatic actions.
 

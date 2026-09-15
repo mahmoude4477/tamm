@@ -32,11 +32,14 @@ npm run build
 node scripts/integration.mjs
 node scripts/auth-integration.mjs
 node scripts/planning-integration.mjs
+node scripts/v2-integration.mjs
 npx playwright install chromium
 RUN_AUTH_E2E=true npm run test:e2e
 ```
 
-V1.5 validation passed type checking, 30 domain/localization/upload-scanning tests, PostgreSQL migrations and integration flows, the production build, and 5 browser checks covering work management, Arabic/mobile navigation, account/passkey setup, overview accessibility, and the complete planning-to-board workflow. CI runs these checks for changes. Integration fixtures use `example.com` accounts and local file email delivery.
+Current-scope validation covers type checking, 35 domain/localization/upload-scanning tests, PostgreSQL migrations and integration flows, the production build, and 6 browser checks covering work management, Arabic/mobile navigation, account/passkey setup, overview accessibility, the complete planning-to-board workflow, and custom fields/time/calendar keys/Hijri preferences. CI runs these checks for changes. Integration fixtures use `example.com` accounts and local file email delivery.
 
 The interface follows the principles in [Better UI](https://skills.sh/jakubkrehel/skills/better-ui) and [Emil Design Engineering](https://skills.sh/emilkowalski/skills/emil-design-eng): clear hierarchy, keyboard access, restrained motion, and useful states.
 
+
+V2 integration checks also exercise webhook signatures and retries, key scope/revocation, and AI context/quotas using a local mock provider. No real email or AI service is contacted by CI.

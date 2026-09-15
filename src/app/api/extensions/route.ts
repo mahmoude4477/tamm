@@ -179,6 +179,7 @@ export async function POST(request: Request) {
           throw new DomainError("forbidden");
         return t;
       };
+      let before: unknown = null;
       let secret: string | undefined,
         entityId = "id" in c ? c.id : undefined;
       if (c.type === "field.save") {
@@ -196,6 +197,7 @@ export async function POST(request: Request) {
                 ),
               )
           : [];
+        before = old ?? null;
         if (c.id && !old) throw new DomainError("forbidden");
         if (old && (old.kind !== c.kind || old.projectId !== c.projectId))
           throw new DomainError("invalid");
@@ -242,6 +244,17 @@ export async function POST(request: Request) {
           )
         )
           throw new DomainError("invalid");
+        const [previous] = await tx
+          .select()
+          .from(s.customValues)
+          .where(
+            and(
+              eq(s.customValues.taskId, t.id),
+              eq(s.customValues.fieldId, f.id),
+              eq(s.customValues.workspaceId, w.id),
+            ),
+          );
+        before = previous?.value ?? null;
         await tx
           .insert(s.customValues)
           .values({
@@ -269,6 +282,7 @@ export async function POST(request: Request) {
                   ),
                 )
             : [];
+        before = old ?? null;
         if ("id" in c && c.id && (!old || old.userId !== a.id || old.deletedAt))
           throw new DomainError("forbidden");
         if (c.type === "time.start" || c.type === "time.save") {
@@ -414,7 +428,10 @@ export async function POST(request: Request) {
         actorId: a.id,
         action: c.type,
         entityId: entityId ?? null,
-        detail: { type: c.type },
+        detail:
+          c.type.startsWith("field.") || c.type.startsWith("time.")
+            ? { command: c, before }
+            : { type: c.type },
       });
       return { ok: true, id: entityId, secret };
     });
