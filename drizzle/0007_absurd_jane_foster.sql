@@ -1,0 +1,2 @@
+ALTER TABLE "webhook_endpoint" ADD COLUMN "last_polled_at" timestamp with time zone DEFAULT 'epoch'::timestamptz NOT NULL;--> statement-breakpoint
+CREATE INDEX "webhook_dispatch" ON "webhook_endpoint" USING btree ("enabled","last_polled_at");

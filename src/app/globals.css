@@ -2128,3 +2128,21 @@ tr:last-child td {
 .extension-panel textarea {
   resize: vertical;
 }
+.extension-panel .planning-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-block: 1rem;
+}
+.extension-panel .planning-tabs button {
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+}
+.extension-panel .planning-tabs button[aria-pressed="true"] {
+  border-color: var(--line);
+  background: var(--sidebar, #f3f5ef);
+  color: var(--primary);
+}
+.extension-panel label[hidden] {
+  display: none !important;
+}

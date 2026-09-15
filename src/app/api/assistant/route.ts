@@ -112,16 +112,14 @@ export async function POST(request: Request) {
           .min(1),
       })
       .parse(JSON.parse(text));
-    await db
-      .insert(s.auditLogs)
-      .values({
-        id: crypto.randomUUID(),
-        workspaceId: w.id,
-        actorId: actor.id,
-        action: "assistant.generated",
-        entityId: project.id,
-        detail: { mode: c.mode },
-      });
+    await db.insert(s.auditLogs).values({
+      id: crypto.randomUUID(),
+      workspaceId: w.id,
+      actorId: actor.id,
+      action: "assistant.generated",
+      entityId: project.id,
+      detail: { mode: c.mode },
+    });
     return Response.json(
       { text: result.choices[0].message.content },
       { headers: { "Cache-Control": "no-store" } },

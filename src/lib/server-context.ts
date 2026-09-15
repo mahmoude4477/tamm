@@ -101,16 +101,21 @@ export function apiError(error: unknown) {
     { error: code },
     {
       status:
-        code === "session"
-          ? 401
-          : code === "conflict"
-            ? 409
-            : code === "invalid"
-              ? 400
-              : code === "unavailable"
-                ? 500
-                : 403,
-      headers: { "Cache-Control": "no-store" },
+        code === "limit"
+          ? 429
+          : code === "session"
+            ? 401
+            : code === "conflict"
+              ? 409
+              : code === "invalid"
+                ? 400
+                : code === "unavailable"
+                  ? 500
+                  : 403,
+      headers: {
+        "Cache-Control": "no-store",
+        ...(code === "limit" ? { "Retry-After": "60" } : {}),
+      },
     },
   );
 }

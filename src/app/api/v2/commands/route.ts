@@ -75,16 +75,14 @@ export async function POST(request: Request) {
       }
       await saveWorkspace(tx, next, current);
       await notifyChanges(tx, current, next);
-      await tx
-        .insert(s.auditLogs)
-        .values({
-          id: crypto.randomUUID(),
-          workspaceId: key.workspaceId,
-          actorId: key.userId,
-          action: c.type,
-          entityId: changed[0]?.id ?? null,
-          detail: { integrationKeyId: key.id, command: c },
-        });
+      await tx.insert(s.auditLogs).values({
+        id: crypto.randomUUID(),
+        workspaceId: key.workspaceId,
+        actorId: key.userId,
+        action: c.type,
+        entityId: changed[0]?.id ?? null,
+        detail: { integrationKeyId: key.id, command: c },
+      });
       return {
         tasks: visibleWorkspace(next).tasks.filter((t) =>
           changed.some((x) => x.id === t.id),

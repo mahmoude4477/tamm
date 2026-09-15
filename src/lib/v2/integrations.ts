@@ -59,13 +59,24 @@ export async function integrationIdentity(
 ) {
   const value = queryToken
     ? new URL(request.url).searchParams.get("token")
-    : request.headers.get("authorization")?.replace(/^Bearer /, "");
+    : request.headers.get("authorization")?.replace(/^Bearer /i, "");
   if (!value || !/^tamm_[A-Za-z0-9_-]{43}$/.test(value))
     throw new DomainError("session");
   const result = await db.execute<{ id: string }>(
     sql`update integration_key set requests=case when window_at<now()-interval '1 minute' then 1 else requests+1 end,window_at=case when window_at<now()-interval '1 minute' then now() else window_at end where hash=${hashToken(value)} and revoked_at is null and expires_at>now() and (window_at<now()-interval '1 minute' or requests<120) returning id`,
   );
-  if (!result.rows[0]) throw new DomainError("forbidden");
+  if (!result.rows[0]) {
+    const [active] = await db
+      .select()
+      .from(s.integrationKeys)
+      .where(
+        and(
+          eq(s.integrationKeys.hash, hashToken(value)),
+          sql`${s.integrationKeys.revokedAt} is null and ${s.integrationKeys.expiresAt}>now()`,
+        ),
+      );
+    throw new DomainError(active ? "limit" : "forbidden");
+  }
   const [key] = await db
     .select()
     .from(s.integrationKeys)
@@ -101,12 +112,16 @@ export async function deliverWebhooks() {
     .select()
     .from(s.webhookEndpoints)
     .where(eq(s.webhookEndpoints.enabled, true))
-    .orderBy(s.webhookEndpoints.id)
+    .orderBy(s.webhookEndpoints.lastPolledAt, s.webhookEndpoints.id)
     .limit(100);
   let delivered = 0,
     attempts = 0;
   for (const endpoint of endpoints.slice(0, 100)) {
     try {
+      await db
+        .update(s.webhookEndpoints)
+        .set({ lastPolledAt: new Date() })
+        .where(eq(s.webhookEndpoints.id, endpoint.id));
       validateHookUrl(endpoint.url);
       const [account] = await db
         .select()

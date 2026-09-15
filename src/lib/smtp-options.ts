@@ -1,5 +1,7 @@
 import { z } from "zod";
-export function smtpOptions(env: Record<string, string | undefined> = process.env) {
+export function smtpOptions(
+  env: Record<string, string | undefined> = process.env,
+) {
   const host = z.string().trim().min(1).parse(env.SMTP_HOST),
     port = z.coerce
       .number()

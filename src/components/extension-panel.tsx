@@ -47,6 +47,7 @@ export function ExtensionPanel({
   const admin = can(actor.role, "user.manage", actor.permissions),
     manage = can(actor.role, "project.manage", actor.permissions),
     report = can(actor.role, "report.view", actor.permissions);
+  const [fieldKind, setFieldKind] = useState<string>("text");
   const [tab, setTab] = useState<
       "fields" | "time" | "integrations" | "assistant"
     >("fields"),
@@ -264,8 +265,10 @@ export function ExtensionPanel({
                           type: "field.save",
                           id: editField?.id,
                           name: f.get("name"),
-                          kind: f.get("kind"),
-                          projectId: f.get("project") || null,
+                          kind: editField?.kind || f.get("kind"),
+                          projectId: editField
+                            ? editField.projectId
+                            : f.get("project") || null,
                           options: String(f.get("options") || "")
                             .split("\n")
                             .map((s) => s.trim())
@@ -290,6 +293,8 @@ export function ExtensionPanel({
                       {p.kind}
                       <select
                         name="kind"
+                        disabled={!!editField}
+                        onChange={(e) => setFieldKind(e.target.value)}
                         aria-label={p.kind}
                         defaultValue={editField?.kind || "text"}
                       >
@@ -305,12 +310,13 @@ export function ExtensionPanel({
                       <select
                         name="project"
                         aria-label={p.project}
+                        disabled={!!editField}
                         defaultValue={editField?.projectId || ""}
                       >
                         {projects(true)}
                       </select>
                     </label>
-                    <label>
+                    <label hidden={fieldKind !== "dropdown"}>
                       {p.options}
                       <textarea
                         name="options"
@@ -322,7 +328,10 @@ export function ExtensionPanel({
                       <Button
                         type="button"
                         variant="ghost"
-                        onClick={() => setEditField(null)}
+                        onClick={() => {
+                          setEditField(null);
+                          setFieldKind("text");
+                        }}
                       >
                         {p.cancel}
                       </Button>
@@ -341,7 +350,10 @@ export function ExtensionPanel({
                         <Button
                           type="button"
                           variant="ghost"
-                          onClick={() => setEditField(f)}
+                          onClick={() => {
+                            setEditField(f);
+                            setFieldKind(f.kind);
+                          }}
                         >
                           {p.edit}
                         </Button>

@@ -116,4 +116,4 @@ The owned components in `src/components/ui` use `@base-ui/react` with shadcn com
 
 ## Current release configuration
 
-See [Email setup](smtp.md) for SMTP host/IP, TLS, login, sender, and the non-sending connection check. See [Integrations](integrations.md) for API keys, webhook allowlists and encryption keys, calendar feeds, and optional AI. Apply migration 0006 before starting this release. The existing worker now also dispatches webhooks.
+See [Email setup](smtp.md) for SMTP host/IP, TLS, login, sender, and the non-sending connection check. See [Integrations](integrations.md) for API keys, webhook allowlists and encryption keys, calendar feeds, and optional AI. Apply migrations 0006 and 0007 before starting this release. The existing worker now also dispatches webhooks.

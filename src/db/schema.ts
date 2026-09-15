@@ -776,6 +776,9 @@ export const webhookEndpoints = pgTable(
     projectId: text("project_id").notNull(),
     encryptedSecret: text("encrypted_secret").notNull(),
     enabled: boolean("enabled").notNull().default(true),
+    lastPolledAt: timestamp("last_polled_at", { withTimezone: true })
+      .notNull()
+      .default(sql`'epoch'::timestamptz`),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -791,6 +794,7 @@ export const webhookEndpoints = pgTable(
     }),
     unique("webhook_scope").on(t.workspaceId, t.id),
     index("webhook_workspace").on(t.workspaceId),
+    index("webhook_dispatch").on(t.enabled, t.lastPolledAt),
   ],
 );
 export const webhookDeliveries = pgTable(

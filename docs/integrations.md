@@ -6,7 +6,7 @@ Open **Tools & integrations** in a persistent workspace. Credentials are generat
 
 ## Task API
 
-Send `Authorization: Bearer <key>` over HTTPS to your own Tamm installation. Keys inherit their creator's current project visibility and action permissions; inactive or suspended accounts cannot use them. The token hash is stored, not the token. Keys accept at most 120 requests per minute. An invalid, expired, revoked, rate-limited, or insufficient-scope key receives a non-success response. Cookie authentication does not substitute for an API key on these endpoints.
+Send `Authorization: Bearer <key>` over HTTPS to your own Tamm installation. Keys inherit their creator's current project visibility and action permissions; inactive or suspended accounts cannot use them. The token hash is stored, not the token. Keys accept at most 120 requests per minute. A rate-limited active key receives 429 with Retry-After. Invalid, expired, revoked, or insufficient-scope keys receive a non-success response. Cookie authentication does not substitute for an API key on these endpoints.
 
 | Endpoint | Capability | Result |
 | --- | --- | --- |
@@ -75,7 +75,7 @@ Use comma-separated **exact origins**, including a port when needed. Internal HT
 
 Each endpoint is scoped to one project. It sends activity event IDs, event types, workspace/project/task IDs, and occurrence time. It does not send task descriptions, comments, or attachments; fetch authorized details with the task API. Events before endpoint creation are excluded. Pausing stops delivery; resuming catches up with events since creation.
 
-Delivery uses the existing worker. Each invocation queues up to 50 new events per selected endpoint and attempts at most 20 deliveries globally. Failed deliveries retry with exponential delay, up to five attempts. Administrators see recent status codes and can retry failed deliveries. Delivery is **at least once**, so deduplicate by `X-Tamm-Id` or the event ID. Endpoint access is checked against its creator's current account and project membership at dispatch time.
+Delivery uses the existing worker. Endpoints are polled in least-recently-checked order so busy endpoints cannot permanently starve others. Each invocation queues up to 50 new events per selected endpoint and attempts at most 20 deliveries globally. Failed deliveries retry with exponential delay, up to five attempts. Administrators see recent status codes and can retry failed deliveries. Delivery is **at least once**, so deduplicate by `X-Tamm-Id` or the event ID. Endpoint access is checked against its creator's current account and project membership at dispatch time.
 
 Verify the signature over the **unchanged request body**, prefixed with the timestamp and a period:
 

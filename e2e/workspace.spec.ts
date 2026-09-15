@@ -317,11 +317,9 @@ test("V2 custom values, time entries, calendar keys and Hijri preference", async
   const panel = page.locator(".extension-panel");
   await expect(panel.getByRole("heading", { name: en.v2.title })).toBeVisible();
   const fieldName = `Browser field ${Date.now()}`;
-  const form = panel
-    .locator("form")
-    .filter({
-      has: page.getByRole("heading", { name: en.v2.create, exact: true }),
-    });
+  const form = panel.locator("form").filter({
+    has: page.getByRole("heading", { name: en.v2.create, exact: true }),
+  });
   await form.getByLabel(en.v2.name, { exact: true }).fill(fieldName);
   await form.getByRole("button", { name: en.v2.save, exact: true }).click();
   await expect(panel.getByRole("heading", { name: fieldName })).toBeVisible();
@@ -345,11 +343,9 @@ test("V2 custom values, time entries, calendar keys and Hijri preference", async
   await expect(
     panel.getByRole("button", { name: en.v2.stop, exact: true }),
   ).toBeHidden();
-  const manual = panel
-    .locator("form")
-    .filter({
-      has: page.getByRole("heading", { name: en.v2.manual, exact: true }),
-    });
+  const manual = panel.locator("form").filter({
+    has: page.getByRole("heading", { name: en.v2.manual, exact: true }),
+  });
   await manual.getByLabel(en.v2.minutes, { exact: true }).fill("25");
   await manual
     .getByLabel(en.v2.note, { exact: true })
